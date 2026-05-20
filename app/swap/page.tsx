@@ -1,7 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  useAccount,
+  useReadContract,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  useBalance,
+} from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { parseUnits, formatUnits } from "viem";
 import {
@@ -10,11 +17,26 @@ import {
   TOKEN_ADDRESSES,
   ERC20_ABI,
 } from "@/lib/contracts";
+import {
+  pageVariants,
+  fadeUpVariants,
+  scaleInVariants,
+} from "@/lib/animations";
+
+// ── Token config ─────────────────────────────────────────────
+const TOKENS: Record<string, { symbol: string; name: string; decimals: number; color: string; icon: string }> = {
+  USDC: { symbol: "USDC", name: "USD Coin",         decimals: 6, color: "#2775CA", icon: "$"  },
+  EURC: { symbol: "EURC", name: "Euro Coin",         decimals: 6, color: "#0052B4", icon: "€"  },
+  BRLA: { symbol: "BRLA", name: "Brazilian Real",    decimals: 6, color: "#009C3B", icon: "R$" },
+  MXNB: { symbol: "MXNB", name: "Mexican Peso",      decimals: 6, color: "#006847", icon: "$"  },
+  PHPC: { symbol: "PHPC", name: "Philippine Peso",   decimals: 6, color: "#0038A8", icon: "₱"  },
+  JPYC: { symbol: "JPYC", name: "Japanese Yen",      decimals: 6, color: "#BC002D", icon: "¥"  },
+  KRW1: { symbol: "KRW1", name: "Korean Won",        decimals: 6, color: "#003478", icon: "₩"  },
+};
 
 const FROM_TOKENS = ["USDC", "EURC"];
-const TO_TOKENS = ["BRLA", "MXNB", "PHPC", "JPYC", "KRW1", "EURC", "USDC"];
+const TO_TOKENS   = ["BRLA", "MXNB", "PHPC", "JPYC", "KRW1", "EURC", "USDC"];
 
-// Fallback rates used when the contract pair is not yet configured
 const MOCK_RATES: Record<string, Record<string, number>> = {
   USDC: { BRLA: 5.87, MXNB: 17.2, PHPC: 58.4, JPYC: 149.3, KRW1: 1342.5, EURC: 0.92, USDC: 1 },
   EURC: { USDC: 1.087, BRLA: 6.38, MXNB: 18.7, PHPC: 63.5, JPYC: 162.3, KRW1: 1459.8, EURC: 1 },
@@ -22,21 +44,122 @@ const MOCK_RATES: Record<string, Record<string, number>> = {
 
 type SwapPhase = "idle" | "approving" | "approved" | "swapping" | "success" | "error";
 
+// ── Balance formatting ────────────────────────────────────────
+function formatBalance(balance: bigint | undefined, decimals: number): string {
+  if (balance === undefined) return "--";
+  const formatted = formatUnits(balance, decimals);
+  const num = parseFloat(formatted);
+  if (num === 0) return "0.00";
+  if (num < 0.01) return "< 0.01";
+  if (num < 1000) return num.toFixed(2);
+  if (num < 1_000_000) return (num / 1000).toFixed(2) + "K";
+  return (num / 1_000_000).toFixed(2) + "M";
+}
+
+// ── Token selector ────────────────────────────────────────────
+function TokenSelect({
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const t = TOKENS[value];
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="appearance-none w-full rounded-xl px-4 py-3 text-sm font-bold text-white outline-none cursor-pointer pr-8"
+        style={{
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.1)",
+        }}
+      >
+        {options.map((sym) => (
+          <option key={sym} value={sym} style={{ background: "#0D1526" }}>
+            {TOKENS[sym].icon}  {sym} — {TOKENS[sym].name}
+          </option>
+        ))}
+      </select>
+      <div
+        className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-sm"
+        style={{ background: t.color }}
+      />
+    </div>
+  );
+}
+
+// ── Shimmer skeleton ──────────────────────────────────────────
+function BalanceSkeleton() {
+  return (
+    <div className="h-3 w-20 rounded shimmer" />
+  );
+}
+
+// ── Phase label ───────────────────────────────────────────────
+function PhaseLabel({ phase }: { phase: SwapPhase }) {
+  const labels: Record<SwapPhase, string> = {
+    idle: "Swap Now",
+    approving: "Step 1/2: Approving…",
+    approved: "Preparing swap…",
+    swapping: "Step 2/2: Swapping…",
+    success: "Swap Now",
+    error: "↩ Try Again",
+  };
+  return (
+    <motion.span
+      key={phase}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -6 }}
+      transition={{ duration: 0.2 }}
+      className="flex items-center gap-2"
+    >
+      {(phase === "approving" || phase === "approved" || phase === "swapping") && (
+        <span className="animate-spin inline-block">⟳</span>
+      )}
+      {labels[phase]}
+    </motion.span>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────
 export default function SwapPage() {
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const [fromToken, setFromToken] = useState("USDC");
-  const [toToken, setToToken] = useState("BRLA");
+  const [toToken,   setToToken]   = useState("BRLA");
   const [fromAmount, setFromAmount] = useState("");
   const [phase, setPhase] = useState<SwapPhase>("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [swapTxHash, setSwapTxHash] = useState<`0x${string}` | undefined>();
+  const [swapTxHash,    setSwapTxHash]    = useState<`0x${string}` | undefined>();
   const [approveTxHash, setApproveTxHash] = useState<`0x${string}` | undefined>();
 
-  const fromAddr = TOKEN_ADDRESSES[fromToken];
-  const toAddr = TOKEN_ADDRESSES[toToken];
-  const amountIn = fromAmount ? parseUnits(fromAmount, 6) : BigInt(0);
+  const fromAddr = TOKEN_ADDRESSES[fromToken] as `0x${string}`;
+  const toAddr   = TOKEN_ADDRESSES[toToken]   as `0x${string}`;
+  const fromDecimals = TOKENS[fromToken].decimals;
+  const amountIn = fromAmount ? parseUnits(fromAmount, fromDecimals) : BigInt(0);
 
-  // ── Read: getAmountOut from contract ──────────────────────
+  // ── Balances ────────────────────────────────────────────────
+  const { data: fromBalanceData, isLoading: fromBalLoading, refetch: refetchFrom } = useBalance({
+    address,
+    token: fromAddr,
+    chainId: 5042002,
+    query: { enabled: !!address && !!fromAddr, refetchInterval: 10000 },
+  });
+  const { data: toBalanceData, refetch: refetchTo } = useBalance({
+    address,
+    token: toAddr,
+    chainId: 5042002,
+    query: { enabled: !!address && !!toAddr, refetchInterval: 10000 },
+  });
+
+  // ── getAmountOut ────────────────────────────────────────────
   const { data: contractOut } = useReadContract({
     address: STELFI_SWAP_ADDRESS,
     abi: STELFI_SWAP_ABI,
@@ -46,45 +169,57 @@ export default function SwapPage() {
   });
 
   const contractAmountOut = contractOut ? (contractOut as [bigint, bigint])[0] : BigInt(0);
-  const contractFee = contractOut ? (contractOut as [bigint, bigint])[1] : BigInt(0);
-  const usingLiveRate = contractAmountOut > BigInt(0);
+  const contractFee       = contractOut ? (contractOut as [bigint, bigint])[1] : BigInt(0);
+  const usingLiveRate     = contractAmountOut > BigInt(0);
 
-  // Displayed output amount
-  let toAmount = "";
+  let toAmount   = "";
   let displayFee = "0";
   if (fromAmount && parseFloat(fromAmount) > 0) {
     if (usingLiveRate) {
-      toAmount = formatUnits(contractAmountOut, 6);
+      toAmount   = formatUnits(contractAmountOut, 6);
       displayFee = formatUnits(contractFee, 6);
     } else {
-      const mockRate = MOCK_RATES[fromToken]?.[toToken] ?? 1;
+      const rate    = MOCK_RATES[fromToken]?.[toToken] ?? 1;
       const mockFee = parseFloat(fromAmount) * 0.003;
-      toAmount = ((parseFloat(fromAmount) - mockFee) * mockRate).toFixed(4);
+      toAmount   = ((parseFloat(fromAmount) - mockFee) * rate).toFixed(4);
       displayFee = mockFee.toFixed(4);
     }
   }
 
-  // Display rate string
   const rateDisplay = usingLiveRate
     ? `1 ${fromToken} ≈ ${(parseFloat(toAmount || "0") / parseFloat(fromAmount || "1")).toFixed(4)} ${toToken}`
     : `1 ${fromToken} = ${MOCK_RATES[fromToken]?.[toToken] ?? "—"} ${toToken}`;
 
-  // ── Write: approve ─────────────────────────────────────────
+  // ── Write hooks ─────────────────────────────────────────────
   const { writeContractAsync: writeApprove } = useWriteContract();
-  const { writeContractAsync: writeSwap } = useWriteContract();
+  const { writeContractAsync: writeSwap }    = useWriteContract();
 
-  // ── Wait for receipts ──────────────────────────────────────
   const { isSuccess: approveConfirmed } = useWaitForTransactionReceipt({
     hash: approveTxHash,
     query: { enabled: !!approveTxHash },
   });
-
   const { isSuccess: swapConfirmed } = useWaitForTransactionReceipt({
     hash: swapTxHash,
     query: { enabled: !!swapTxHash },
   });
 
-  // Auto-advance from approved → swapping
+  const executeSwap = useCallback(async () => {
+    try {
+      const hash = await writeSwap({
+        address: STELFI_SWAP_ADDRESS,
+        abi: STELFI_SWAP_ABI,
+        functionName: "swap",
+        args: [fromAddr, toAddr, amountIn],
+      });
+      setSwapTxHash(hash);
+      setPhase("swapping");
+    } catch (e: unknown) {
+      const err = e as { shortMessage?: string; message?: string };
+      setPhase("error");
+      setErrorMsg(err?.shortMessage || err?.message || "Swap failed");
+    }
+  }, [writeSwap, fromAddr, toAddr, amountIn]);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (approveConfirmed && phase === "approving") {
@@ -96,13 +231,19 @@ export default function SwapPage() {
   useEffect(() => {
     if (swapConfirmed && phase === "swapping") {
       setPhase("success");
+      refetchFrom();
+      refetchTo();
     }
-  }, [swapConfirmed, phase]);
+  }, [swapConfirmed, phase, refetchFrom, refetchTo]);
 
   function handleSwapDirection() {
-    const tmp = fromToken;
-    setFromToken(TO_TOKENS.includes(toToken) && FROM_TOKENS.includes(toToken) ? toToken : toToken);
-    setToToken(tmp);
+    if (FROM_TOKENS.includes(toToken)) {
+      const tmp = fromToken;
+      setFromToken(toToken);
+      setToToken(tmp);
+    } else {
+      setToToken(fromToken);
+    }
     setFromAmount("");
     setPhase("idle");
   }
@@ -113,7 +254,6 @@ export default function SwapPage() {
     setErrorMsg("");
     setApproveTxHash(undefined);
     setSwapTxHash(undefined);
-
     try {
       const hash = await writeApprove({
         address: fromAddr,
@@ -123,27 +263,18 @@ export default function SwapPage() {
       });
       setApproveTxHash(hash);
     } catch (e: unknown) {
-      setPhase("error");
       const err = e as { shortMessage?: string; message?: string };
+      setPhase("error");
       setErrorMsg(err?.shortMessage || err?.message || "Approval failed");
     }
   }
 
-  async function executeSwap() {
-    try {
-      const hash = await writeSwap({
-        address: STELFI_SWAP_ADDRESS,
-        abi: STELFI_SWAP_ABI,
-        functionName: "swap",
-        args: [fromAddr, toAddr, amountIn],
-      });
-      setSwapTxHash(hash);
-      setPhase("swapping");
-    } catch (e: unknown) {
-      setPhase("error");
-      const err = e as { shortMessage?: string; message?: string };
-      setErrorMsg(err?.shortMessage || err?.message || "Swap failed");
-    }
+  function handleMax() {
+    if (!fromBalanceData) return;
+    const max = fromBalanceData.value;
+    const buffer = parseUnits("0.01", fromDecimals);
+    const val = max > buffer ? max - buffer : BigInt(0);
+    setFromAmount(formatUnits(val, fromDecimals));
   }
 
   function reset() {
@@ -156,196 +287,250 @@ export default function SwapPage() {
 
   const isLoading = phase === "approving" || phase === "approved" || phase === "swapping";
 
+  // ── Render ───────────────────────────────────────────────────
   return (
-    <div className="flex flex-col items-center px-6 pt-12 pb-16">
-      {/* Page header */}
-      <div className="w-full max-w-lg mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <h1 className="text-3xl font-bold text-white">Stelfi Swap</h1>
-          <NetworkBadge />
-        </div>
-        <p className="text-sm" style={{ color: "#00D4AA" }}>
-          Exchange stablecoins instantly on Arc Network
-        </p>
-      </div>
-
-      {/* Swap card */}
-      <div
-        className="w-full max-w-lg rounded-2xl border p-6 flex flex-col gap-4"
-        style={{ backgroundColor: "#1A2340", borderColor: "#1E2D4A" }}
-      >
-        {/* FROM */}
-        <div>
-          <label className="text-xs font-medium mb-2 block" style={{ color: "#8B9EC7" }}>
-            From
-          </label>
-          <div
-            className="flex gap-3 rounded-xl p-4"
-            style={{ backgroundColor: "#0A0F1E", border: "1px solid #1E2D4A" }}
-          >
-            <select
-              value={fromToken}
-              onChange={(e) => { setFromToken(e.target.value); setPhase("idle"); }}
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-white outline-none cursor-pointer"
-              style={{ backgroundColor: "#1A2340", border: "1px solid #1E2D4A" }}
-            >
-              {FROM_TOKENS.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <input
-              type="number"
-              placeholder="0.00"
-              value={fromAmount}
-              onChange={(e) => { setFromAmount(e.target.value); setPhase("idle"); }}
-              className="flex-1 bg-transparent text-right text-2xl font-semibold text-white outline-none placeholder:text-gray-600"
-              min="0"
-              disabled={isLoading}
-            />
+    <motion.div
+      variants={pageVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      className="min-h-screen pt-28 pb-16 px-4"
+      style={{ position: "relative", zIndex: 1 }}
+    >
+      <div className="max-w-lg mx-auto">
+        {/* Header */}
+        <motion.div variants={fadeUpVariants} className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-black text-white">Stelfi Swap</h1>
+            <NetworkBadge />
           </div>
-          <p className="text-xs mt-1 text-right" style={{ color: "#8B9EC7" }}>
-            Balance: {isConnected ? "—" : "Connect wallet"}
+          <p className="text-sm" style={{ color: "#00D4AA" }}>
+            Exchange stablecoins instantly on Arc Network
           </p>
-        </div>
+        </motion.div>
 
-        {/* Swap direction */}
-        <div className="flex justify-center">
-          <button
-            onClick={handleSwapDirection}
-            disabled={isLoading}
-            className="w-10 h-10 rounded-full flex items-center justify-center transition-all hover:rotate-180 duration-300 disabled:opacity-40"
-            style={{ backgroundColor: "#0A0F1E", border: "1px solid #1E2D4A", color: "#8B9EC7" }}
-          >
-            ↕
-          </button>
-        </div>
+        {/* Swap card */}
+        <motion.div variants={scaleInVariants} className="glass-card p-6 flex flex-col gap-5">
 
-        {/* TO */}
-        <div>
-          <label className="text-xs font-medium mb-2 block" style={{ color: "#8B9EC7" }}>
-            To
-          </label>
-          <div
-            className="flex gap-3 rounded-xl p-4"
-            style={{ backgroundColor: "#0A0F1E", border: "1px solid #1E2D4A" }}
-          >
-            <select
-              value={toToken}
-              onChange={(e) => { setToToken(e.target.value); setPhase("idle"); }}
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-white outline-none cursor-pointer"
-              style={{ backgroundColor: "#1A2340", border: "1px solid #1E2D4A" }}
+          {/* FROM */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#8B9EC7" }}>From</label>
+              <div className="flex items-center gap-2">
+                {isConnected ? (
+                  fromBalLoading ? <BalanceSkeleton /> : (
+                    <span className="text-xs" style={{ color: "#8B9EC7" }}>
+                      Balance:{" "}
+                      <span style={{ color: fromBalanceData && fromBalanceData.value > BigInt(0) ? "#00D4AA" : "#8B9EC7" }}>
+                        {formatBalance(fromBalanceData?.value, fromDecimals)} {fromToken}
+                      </span>
+                    </span>
+                  )
+                ) : (
+                  <span className="text-xs" style={{ color: "#4A5568" }}>Balance: --</span>
+                )}
+                {isConnected && fromBalanceData && fromBalanceData.value > BigInt(0) && (
+                  <button onClick={handleMax} className="balance-badge text-xs px-2 py-0.5" disabled={isLoading}>
+                    MAX
+                  </button>
+                )}
+              </div>
+            </div>
+            <div
+              className="flex gap-3 rounded-xl p-4"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
-              {TO_TOKENS.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <input
-              type="number"
-              readOnly
-              value={toAmount}
-              placeholder="0.00"
-              className="flex-1 bg-transparent text-right text-2xl font-semibold outline-none cursor-default"
-              style={{ color: toAmount ? "#00D4AA" : "#4B5563" }}
-            />
-          </div>
-        </div>
-
-        {/* Rate info */}
-        <div
-          className="rounded-xl p-4 flex flex-col gap-1.5 text-xs"
-          style={{ backgroundColor: "#0A0F1E", border: "1px solid #1E2D4A", color: "#8B9EC7" }}
-        >
-          <div className="flex justify-between">
-            <span>Rate</span>
-            <span className="text-white">{rateDisplay}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Fee (0.3%)</span>
-            <span className="text-white">{displayFee} {fromToken}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Source</span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className="w-1.5 h-1.5 rounded-full inline-block"
-                style={{ backgroundColor: usingLiveRate ? "#00D4AA" : "#8B9EC7" }}
+              <div className="w-44">
+                <TokenSelect
+                  value={fromToken}
+                  options={FROM_TOKENS}
+                  onChange={(v) => { setFromToken(v); setPhase("idle"); }}
+                  disabled={isLoading}
+                />
+              </div>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={fromAmount}
+                onChange={(e) => { setFromAmount(e.target.value); setPhase("idle"); }}
+                disabled={isLoading}
+                className="flex-1 bg-transparent text-right text-2xl font-bold text-white outline-none placeholder:text-gray-700"
+                min="0"
               />
-              {usingLiveRate ? (
-                <span style={{ color: "#00D4AA" }}>Live rate from contract</span>
-              ) : (
-                <span>Mock rate (pair not configured)</span>
-              )}
-            </span>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span>Network</span>
-            <span style={{ color: "#00D4AA" }}>Arc Testnet</span>
-          </div>
-        </div>
 
-        {/* Swap button */}
-        {isConnected ? (
-          <button
-            onClick={phase === "error" ? reset : handleSwapClick}
-            disabled={isLoading || (!fromAmount && phase !== "error")}
-            className="w-full rounded-xl font-bold text-base transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ height: "52px", backgroundColor: phase === "error" ? "#1A2340" : "#00D4AA", color: phase === "error" ? "#8B9EC7" : "#0A0F1E", border: phase === "error" ? "1px solid #1E2D4A" : "none" }}
-          >
-            {phase === "approving" && <><span className="animate-spin inline-block">⟳</span> Step 1/2: Approving {fromToken}...</>}
-            {phase === "approved" && <><span className="animate-spin inline-block">⟳</span> Preparing swap...</>}
-            {phase === "swapping" && <><span className="animate-spin inline-block">⟳</span> Step 2/2: Executing swap...</>}
-            {phase === "error" && "↩ Try Again"}
-            {(phase === "idle" || phase === "success") && "Swap Now"}
-          </button>
-        ) : (
-          <div className="flex justify-center">
-            <ConnectButton label="Connect Wallet to Swap" />
+          {/* Swap direction button */}
+          <div className="flex justify-center -my-1">
+            <motion.button
+              onClick={handleSwapDirection}
+              disabled={isLoading}
+              whileHover={{ rotate: 180, scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ duration: 0.4, ease: "backOut" }}
+              className="w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-40"
+              style={{
+                background: "rgba(0,212,170,0.1)",
+                border: "1px solid rgba(0,212,170,0.3)",
+                color: "#00D4AA",
+              }}
+            >
+              ⇅
+            </motion.button>
           </div>
-        )}
+
+          {/* TO */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#8B9EC7" }}>To</label>
+              {isConnected ? (
+                <span className="text-xs" style={{ color: "#8B9EC7" }}>
+                  Balance:{" "}
+                  <span style={{ color: toBalanceData && toBalanceData.value > BigInt(0) ? "#00D4AA" : "#8B9EC7" }}>
+                    {formatBalance(toBalanceData?.value, TOKENS[toToken].decimals)} {toToken}
+                  </span>
+                </span>
+              ) : (
+                <span className="text-xs" style={{ color: "#4A5568" }}>Balance: --</span>
+              )}
+            </div>
+            <div
+              className="flex gap-3 rounded-xl p-4"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <div className="w-44">
+                <TokenSelect
+                  value={toToken}
+                  options={TO_TOKENS}
+                  onChange={(v) => { setToToken(v); setPhase("idle"); }}
+                  disabled={isLoading}
+                />
+              </div>
+              <input
+                type="number"
+                readOnly
+                value={toAmount}
+                placeholder="0.00"
+                className="flex-1 bg-transparent text-right text-2xl font-bold outline-none cursor-default"
+                style={{ color: toAmount ? "#00D4AA" : "#4A5568" }}
+              />
+            </div>
+          </div>
+
+          {/* Rate info */}
+          <motion.div
+            variants={fadeUpVariants}
+            className="rounded-xl p-4 flex flex-col gap-2 text-xs"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <div className="flex justify-between">
+              <span style={{ color: "#8B9EC7" }}>Rate</span>
+              <span className="text-white">{rateDisplay}</span>
+            </div>
+            <div className="flex justify-between">
+              <span style={{ color: "#8B9EC7" }}>Fee (0.3%)</span>
+              <span className="text-white">{displayFee} {fromToken}</span>
+            </div>
+            <div className="flex justify-between">
+              <span style={{ color: "#8B9EC7" }}>Source</span>
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="w-1.5 h-1.5 rounded-full inline-block"
+                  style={{ backgroundColor: usingLiveRate ? "#00D4AA" : "#8B9EC7" }}
+                />
+                {usingLiveRate
+                  ? <span style={{ color: "#00D4AA" }}>Live rate from contract</span>
+                  : <span style={{ color: "#8B9EC7" }}>Mock rate (pair not configured)</span>}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span style={{ color: "#8B9EC7" }}>Network</span>
+              <span style={{ color: "#00D4AA" }}>Arc Testnet</span>
+            </div>
+          </motion.div>
+
+          {/* Swap button */}
+          {isConnected ? (
+            <motion.button
+              onClick={phase === "error" ? reset : handleSwapClick}
+              disabled={isLoading || (!fromAmount && phase !== "error")}
+              whileHover={!isLoading ? { scale: 1.02 } : {}}
+              whileTap={!isLoading ? { scale: 0.98 } : {}}
+              className="btn-primary w-full flex items-center justify-center"
+              style={{
+                height: "52px",
+                background: phase === "error"
+                  ? "rgba(255,255,255,0.06)"
+                  : "linear-gradient(135deg, #00D4AA, #00B8A0)",
+                color: phase === "error" ? "#8B9EC7" : "#050A14",
+              }}
+            >
+              <AnimatePresence mode="wait">
+                <PhaseLabel phase={phase} />
+              </AnimatePresence>
+            </motion.button>
+          ) : (
+            <div className="flex justify-center">
+              <ConnectButton label="Connect Wallet to Swap" />
+            </div>
+          )}
+        </motion.div>
 
         {/* Status messages */}
-        {phase === "success" && swapTxHash && (
-          <div
-            className="rounded-xl p-4 flex flex-col gap-2 text-sm"
-            style={{ backgroundColor: "#00D4AA11", border: "1px solid #00D4AA44" }}
-          >
-            <div className="flex items-center gap-2 font-semibold" style={{ color: "#00D4AA" }}>
-              <span>✓</span> Swap successful!
-            </div>
-            <p style={{ color: "#8B9EC7" }}>
-              Tx: {swapTxHash.slice(0, 10)}...{swapTxHash.slice(-8)}{" "}
-              <a
-                href={`https://testnet.arcscan.app/tx/${swapTxHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline hover:text-white"
-                style={{ color: "#00D4AA" }}
-              >
-                View on ArcScan →
-              </a>
-            </p>
-            <button onClick={reset} className="text-xs underline text-left mt-1" style={{ color: "#8B9EC7" }}>
-              Make another swap
-            </button>
-          </div>
-        )}
+        <AnimatePresence mode="wait">
+          {phase === "success" && swapTxHash && (
+            <motion.div
+              key="success"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              className="glass-card mt-4 p-4 flex flex-col gap-2 text-sm"
+              style={{ border: "1px solid rgba(0,212,170,0.3)", background: "rgba(0,212,170,0.06)" }}
+            >
+              <div className="flex items-center gap-2 font-semibold" style={{ color: "#00D4AA" }}>
+                <span>✓</span> Swap successful!
+              </div>
+              <p style={{ color: "#8B9EC7" }}>
+                Tx: {swapTxHash.slice(0, 10)}…{swapTxHash.slice(-8)}{" "}
+                <a
+                  href={`https://testnet.arcscan.app/tx/${swapTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                  style={{ color: "#00D4AA" }}
+                >
+                  View on ArcScan →
+                </a>
+              </p>
+              <button onClick={reset} className="text-xs underline text-left mt-1" style={{ color: "#8B9EC7" }}>
+                Make another swap
+              </button>
+            </motion.div>
+          )}
 
-        {phase === "error" && (
-          <div
-            className="rounded-xl p-4 flex flex-col gap-1 text-sm"
-            style={{ backgroundColor: "#FF4D6D11", border: "1px solid #FF4D6D44", color: "#FF4D6D" }}
-          >
-            <div className="flex items-center gap-2">
+          {phase === "error" && (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              className="glass-card mt-4 p-4 text-sm"
+              style={{ border: "1px solid rgba(255,77,109,0.3)", background: "rgba(255,77,109,0.06)", color: "#FF4D6D" }}
+            >
               <span>✕</span> {errorMsg || "Transaction failed."}
-            </div>
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 function NetworkBadge() {
   return (
     <span
-      className="px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1.5"
-      style={{ backgroundColor: "#00D4AA11", color: "#00D4AA", border: "1px solid #00D4AA44" }}
+      className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5"
+      style={{ backgroundColor: "rgba(0,212,170,0.1)", color: "#00D4AA", border: "1px solid rgba(0,212,170,0.3)" }}
     >
       <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
       Arc Testnet
