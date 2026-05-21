@@ -142,7 +142,7 @@ export default function AboutPage() {
           variants={staggerContainer}
           initial="initial"
           whileInView="animate"
-          viewport={{ once: true, amount: 0.1 }}
+          viewport={{ once: true, amount: 0.05 }}
           className="mb-24"
         >
           <motion.h2 variants={staggerItem} className="text-2xl font-black text-white text-center mb-12">
@@ -153,33 +153,21 @@ export default function AboutPage() {
             {/* Swap card */}
             <motion.div variants={staggerItem} className="glass-card p-8 flex flex-col gap-6">
               <div className="flex items-center gap-4">
-                <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center text-xl"
-                  style={{ background: "rgba(0,212,170,0.12)", color: "#00D4AA" }}
-                >
-                  ⇄
-                </div>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl" style={{ background: "rgba(0,212,170,0.12)", color: "#00D4AA" }}>⇄</div>
                 <div>
                   <h3 className="text-xl font-black text-white">Stelfi Swap</h3>
                   <p className="text-xs mt-0.5" style={{ color: "#00D4AA" }}>Cross-Border Stablecoin Exchange</p>
                 </div>
               </div>
               <div className="space-y-4 text-sm leading-relaxed" style={{ color: "#8B9EC7" }}>
-                <p>
-                  Stelfi Swap gives anyone the ability to exchange stablecoins across currencies in
-                  real time. Powered by Arc Network&apos;s native infrastructure, Swap supports USDC, EURC,
-                  BRLA, MXNB, PHPC, JPYC, and KRW1 — covering the Americas, Europe, Asia, and beyond.
-                </p>
-                <p>
-                  With a transparent 0.3% fee, sub-second settlement, and USDC as the gas token,
-                  Stelfi Swap eliminates the hidden costs and delays that plague traditional foreign exchange.
-                </p>
+                <p>Stelfi Swap gives anyone the ability to exchange stablecoins across currencies in real time. Powered by Arc Network&apos;s native infrastructure and Circle App Kit, Swap supports USDC, EURC, BRLA, MXNB, PHPC, JPYC, and KRW1.</p>
+                <p>With a transparent 0.3% fee, sub-second settlement, and USDC as the gas token, Stelfi Swap eliminates the hidden costs and delays that plague traditional foreign exchange.</p>
               </div>
               <div className="flex flex-col gap-2.5">
                 <CheckItem text="7 stablecoin pairs supported" />
                 <CheckItem text="0.3% transparent fee — no hidden costs" />
                 <CheckItem text="Sub-second settlement on Arc Network" />
-                <CheckItem text="USDC-denominated gas — no ETH needed" />
+                <CheckItem text="Powered by Circle App Kit SDK" />
                 <CheckItem text="Non-custodial — your keys, your assets" />
               </div>
             </motion.div>
@@ -187,27 +175,15 @@ export default function AboutPage() {
             {/* Predict card */}
             <motion.div variants={staggerItem} className="glass-card p-8 flex flex-col gap-6">
               <div className="flex items-center gap-4">
-                <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center text-xl"
-                  style={{ background: "rgba(0,212,170,0.12)", color: "#00D4AA" }}
-                >
-                  ◎
-                </div>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl" style={{ background: "rgba(0,212,170,0.12)", color: "#00D4AA" }}>◎</div>
                 <div>
                   <h3 className="text-xl font-black text-white">Stelfi Predict</h3>
                   <p className="text-xs mt-0.5" style={{ color: "#00D4AA" }}>On-Chain Prediction Markets</p>
                 </div>
               </div>
               <div className="space-y-4 text-sm leading-relaxed" style={{ color: "#8B9EC7" }}>
-                <p>
-                  Stelfi Predict brings trustless prediction markets to Arc Network for the first time.
-                  Users stake USDC on binary YES/NO outcomes across financial, economic, and global events.
-                  Markets resolve on-chain with full transparency — no oracle manipulation, no admin interference.
-                </p>
-                <p>
-                  Winners receive proportional payouts automatically via smart contract. Every bet, every
-                  resolution, every payout is permanently recorded on-chain and verifiable by anyone.
-                </p>
+                <p>Stelfi Predict brings trustless prediction markets to Arc Network for the first time. Users stake USDC on binary YES/NO outcomes across financial, economic, and global events. Markets resolve on-chain with full transparency.</p>
+                <p>Winners receive proportional payouts automatically via smart contract. Every bet, every resolution, every payout is permanently recorded on-chain and verifiable by anyone.</p>
               </div>
               <div className="flex flex-col gap-2.5">
                 <CheckItem text="First prediction market on Arc Network" />
@@ -215,6 +191,74 @@ export default function AboutPage() {
                 <CheckItem text="Fully on-chain resolution and payouts" />
                 <CheckItem text="Proportional winnings — no house edge" />
                 <CheckItem text="Transparent odds updated in real time" />
+              </div>
+            </motion.div>
+
+            {/* Bridge card */}
+            <motion.div variants={staggerItem} className="glass-card p-8 flex flex-col gap-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl" style={{ background: "rgba(0,212,170,0.12)", color: "#00D4AA" }}>⛓</div>
+                <div>
+                  <h3 className="text-xl font-black text-white">Stelfi Bridge</h3>
+                  <p className="text-xs mt-0.5" style={{ color: "#00D4AA" }}>Cross-Chain USDC Transfer</p>
+                </div>
+              </div>
+              <div className="space-y-4 text-sm leading-relaxed" style={{ color: "#8B9EC7" }}>
+                <p>Stelfi Bridge enables seamless USDC movement from Ethereum, Base, Arbitrum, and other major blockchains directly into Arc Network in under 30 seconds. Built on Circle&apos;s industry-standard CCTP protocol.</p>
+                <p>Bridge uses a native burn-and-mint mechanism, eliminating the risk of wrapped tokens or synthetic assets. Your USDC arrives on Arc as native, first-class USDC.</p>
+              </div>
+              <div className="flex flex-col gap-2.5">
+                <CheckItem text="Ethereum, Base, Arbitrum supported" />
+                <CheckItem text="Circle CCTP — native burn and mint" />
+                <CheckItem text="No wrapped tokens — zero bridge risk" />
+                <CheckItem text="~20s attestation, under 1s Arc settlement" />
+                <CheckItem text="Free to use on testnet" />
+              </div>
+            </motion.div>
+
+            {/* Send card */}
+            <motion.div variants={staggerItem} className="glass-card p-8 flex flex-col gap-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl" style={{ background: "rgba(0,212,170,0.12)", color: "#00D4AA" }}>➤</div>
+                <div>
+                  <h3 className="text-xl font-black text-white">Stelfi Send</h3>
+                  <p className="text-xs mt-0.5" style={{ color: "#00D4AA" }}>Instant Wallet-to-Wallet Transfers</p>
+                </div>
+              </div>
+              <div className="space-y-4 text-sm leading-relaxed" style={{ color: "#8B9EC7" }}>
+                <p>Stelfi Send gives anyone the ability to transfer USDC directly between wallets on Arc Network with sub-second confirmation. Whether paying a collaborator or splitting costs, Send makes it as simple as entering an address.</p>
+                <p>No fees, no delays, no intermediaries. Transactions go directly from your wallet to the recipient via Arc Network.</p>
+              </div>
+              <div className="flex flex-col gap-2.5">
+                <CheckItem text="Send to any 0x wallet address" />
+                <CheckItem text="Sub-second confirmation on Arc" />
+                <CheckItem text="USDC-denominated gas — predictable cost" />
+                <CheckItem text="Non-custodial — funds go directly" />
+                <CheckItem text="Full transaction history on ArcScan" />
+              </div>
+            </motion.div>
+
+            {/* Unified Balance card — full width on md */}
+            <motion.div variants={staggerItem} className="glass-card p-8 flex flex-col gap-6 md:col-span-2">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl" style={{ background: "rgba(0,212,170,0.12)", color: "#00D4AA" }}>⬡</div>
+                <div>
+                  <h3 className="text-xl font-black text-white">Unified Balance</h3>
+                  <p className="text-xs mt-0.5" style={{ color: "#00D4AA" }}>Chain-Abstracted USDC Management</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4 text-sm leading-relaxed" style={{ color: "#8B9EC7" }}>
+                  <p>Unified Balance is Stelfi&apos;s most advanced capability — and the first consumer-facing implementation on Arc Network. Powered by Circle Gateway, it lets users pool USDC from multiple blockchains into a single, instantly spendable balance.</p>
+                  <p>Forget managing USDC on five different chains. Deposit once from anywhere, spend instantly on Arc.</p>
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  <CheckItem text="Deposit from Ethereum, Base, Arbitrum" />
+                  <CheckItem text="Single unified USDC balance on Arc" />
+                  <CheckItem text="Powered by Circle Gateway" />
+                  <CheckItem text="Spend instantly — no per-chain delays" />
+                  <CheckItem text="First consumer UI for this on Arc" />
+                </div>
               </div>
             </motion.div>
           </div>
@@ -340,25 +384,15 @@ export default function AboutPage() {
               Join the first users of Arc Network&apos;s most complete DeFi platform. Swap stablecoins or
               make your first prediction — all in under 60 seconds.
             </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-4 mb-6">
-              <Link
-                href="/swap"
-                className="btn-primary inline-flex items-center justify-center h-13 px-8 rounded-xl font-bold text-base no-underline"
-                style={{ background: "linear-gradient(135deg,#00D4AA,#00B8A0)", color: "#050A14", height: "52px" }}
-              >
+            <div className="flex flex-wrap justify-center gap-4 mb-6">
+              <Link href="/swap" className="btn-primary inline-flex items-center justify-center px-6 rounded-xl font-bold text-sm no-underline" style={{ background: "linear-gradient(135deg,#00D4AA,#00B8A0)", color: "#050A14", height: "48px" }}>
                 Launch Swap →
               </Link>
-              <Link
-                href="/predict"
-                className="inline-flex items-center justify-center h-13 px-8 rounded-xl font-bold text-base no-underline transition-all duration-300"
-                style={{
-                  background: "rgba(0,212,170,0.1)",
-                  border: "1px solid rgba(0,212,170,0.3)",
-                  color: "#00D4AA",
-                  height: "52px",
-                }}
-              >
+              <Link href="/predict" className="inline-flex items-center justify-center px-6 rounded-xl font-bold text-sm no-underline transition-all duration-300" style={{ background: "rgba(0,212,170,0.1)", border: "1px solid rgba(0,212,170,0.3)", color: "#00D4AA", height: "48px" }}>
                 Launch Predict →
+              </Link>
+              <Link href="/bridge" className="inline-flex items-center justify-center px-6 rounded-xl font-bold text-sm no-underline transition-all duration-300" style={{ background: "rgba(0,212,170,0.1)", border: "1px solid rgba(0,212,170,0.3)", color: "#00D4AA", height: "48px" }}>
+                Launch Bridge →
               </Link>
             </div>
             <Link href="/contact" className="text-sm no-underline" style={{ color: "#8B9EC7" }}>

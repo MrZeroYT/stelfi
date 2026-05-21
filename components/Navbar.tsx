@@ -6,23 +6,31 @@ import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useState, useEffect } from "react";
 
+const primaryLinks = [
+  { href: "/swap",    label: "Swap"    },
+  { href: "/predict", label: "Predict" },
+  { href: "/bridge",  label: "Bridge"  },
+  { href: "/send",    label: "Send"    },
+  { href: "/balance", label: "Balance" },
+];
+
+const secondaryLinks = [
+  { href: "/about",   label: "About"   },
+  { href: "/contact", label: "Contact" },
+];
+
+const allLinks = [...primaryLinks, ...secondaryLinks];
+
 export function Navbar() {
   const pathname = usePathname();
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled,    setScrolled]    = useState(false);
+  const [mobileOpen,  setMobileOpen]  = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
-  const navLinks = [
-    { href: "/swap",    label: "Swap"       },
-    { href: "/predict", label: "Predict"    },
-    { href: "/about",   label: "About"      },
-    { href: "/contact", label: "Contact Us" },
-  ];
 
   return (
     <>
@@ -35,9 +43,19 @@ export function Navbar() {
           scrolled ? "glass-nav" : "bg-transparent"
         }`}
       >
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-full">
-          {/* Logo */}
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+        <div
+          style={{
+            width: "100%",
+            padding: "0 32px",
+            height: "64px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "16px",
+          }}
+        >
+          {/* ── LEFT: Logo ── */}
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} style={{ flexShrink: 0 }}>
             <Link href="/" className="flex items-center gap-2 no-underline">
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center"
@@ -61,16 +79,16 @@ export function Navbar() {
             </Link>
           </motion.div>
 
-          {/* Desktop Nav Links */}
-          <div className="hidden md:flex items-center gap-1 glass-card px-4 py-2 rounded-full">
-            {navLinks.map((link) => {
+          {/* ── CENTER: Primary feature links in glass pill ── */}
+          <div className="hidden lg:flex items-center gap-1 glass-card px-4 py-2 rounded-full" style={{ flexShrink: 0 }}>
+            {primaryLinks.map((link) => {
               const isActive = pathname === link.href;
               return (
                 <Link
                   key={link.href}
                   href={link.href}
                   className="relative px-3 py-2 rounded-full text-sm font-semibold transition-all duration-300 no-underline whitespace-nowrap"
-                  style={{ color: isActive ? "#050A14" : "rgba(139, 158, 199, 1)" }}
+                  style={{ color: isActive ? "#050A14" : "rgba(139,158,199,1)" }}
                 >
                   {isActive && (
                     <motion.div
@@ -78,7 +96,7 @@ export function Navbar() {
                       className="absolute inset-0 rounded-full"
                       style={{
                         background: "linear-gradient(135deg, #00D4AA, #00B8A0)",
-                        boxShadow: "0 0 16px rgba(0, 212, 170, 0.4)",
+                        boxShadow: "0 0 16px rgba(0,212,170,0.4)",
                       }}
                       transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                     />
@@ -89,41 +107,52 @@ export function Navbar() {
             })}
           </div>
 
-          {/* Right: ConnectButton + Mobile toggle */}
-          <div className="flex items-center gap-3">
-            <div className="hidden md:block">
-              <ConnectButton showBalance={false} chainStatus="icon" accountStatus="avatar" />
-            </div>
-
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setMobileOpen(!mobileOpen)}
-              className="md:hidden glass-card p-2 rounded-lg border-0 cursor-pointer"
-            >
-              <div className="w-5 h-4 flex flex-col justify-between">
-                {[0, 1, 2].map((i) => (
-                  <motion.span
-                    key={i}
-                    animate={
-                      mobileOpen
-                        ? {
-                            rotate: i === 0 ? 45 : i === 2 ? -45 : 0,
-                            y: i === 0 ? 6 : i === 2 ? -6 : 0,
-                            opacity: i === 1 ? 0 : 1,
-                          }
-                        : { rotate: 0, y: 0, opacity: 1 }
-                    }
-                    className="block w-full h-0.5 rounded-full"
-                    style={{ background: "#00D4AA" }}
-                  />
-                ))}
-              </div>
-            </motion.button>
+          {/* ── RIGHT: Secondary links + ConnectButton ── */}
+          <div className="hidden lg:flex items-center gap-4" style={{ flexShrink: 0 }}>
+            {secondaryLinks.map((link) => {
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="no-underline text-sm font-medium transition-colors duration-200 whitespace-nowrap"
+                  style={{ color: isActive ? "#00D4AA" : "#8B9EC7" }}
+                  onMouseEnter={(e) => { (e.target as HTMLElement).style.color = "#ffffff"; }}
+                  onMouseLeave={(e) => { (e.target as HTMLElement).style.color = isActive ? "#00D4AA" : "#8B9EC7"; }}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+            <ConnectButton showBalance={false} chainStatus="icon" accountStatus="avatar" />
           </div>
+
+          {/* ── Mobile: hamburger ── */}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="lg:hidden glass-card p-2 rounded-lg border-0 cursor-pointer"
+            style={{ flexShrink: 0 }}
+          >
+            <div className="w-5 h-4 flex flex-col justify-between">
+              {[0, 1, 2].map((i) => (
+                <motion.span
+                  key={i}
+                  animate={
+                    mobileOpen
+                      ? { rotate: i === 0 ? 45 : i === 2 ? -45 : 0, y: i === 0 ? 6 : i === 2 ? -6 : 0, opacity: i === 1 ? 0 : 1 }
+                      : { rotate: 0, y: 0, opacity: 1 }
+                  }
+                  className="block w-full h-0.5 rounded-full"
+                  style={{ background: "#00D4AA" }}
+                />
+              ))}
+            </div>
+          </motion.button>
         </div>
       </motion.nav>
 
-      {/* Mobile Menu */}
+      {/* ── Mobile Menu ── */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
@@ -133,12 +162,12 @@ export function Navbar() {
             transition={{ duration: 0.3 }}
             className="fixed top-16 left-4 right-4 z-40 glass-card rounded-2xl p-4"
           >
-            {navLinks.map((link, i) => (
+            {allLinks.map((link, i) => (
               <motion.div
                 key={link.href}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.1 }}
+                transition={{ delay: i * 0.05 }}
               >
                 <Link
                   href={link.href}
@@ -146,18 +175,14 @@ export function Navbar() {
                   className="block px-4 py-3 rounded-xl text-sm font-semibold no-underline transition-all duration-200"
                   style={{
                     color: pathname === link.href ? "#00D4AA" : "#8B9EC7",
-                    background:
-                      pathname === link.href ? "rgba(0, 212, 170, 0.1)" : "transparent",
+                    background: pathname === link.href ? "rgba(0,212,170,0.1)" : "transparent",
                   }}
                 >
                   {link.label}
                 </Link>
               </motion.div>
             ))}
-            <div
-              className="mt-3 pt-3"
-              style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
-            >
+            <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
               <ConnectButton />
             </div>
           </motion.div>

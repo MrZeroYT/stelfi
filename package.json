@@ -9,6 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@circle-fin/adapter-viem-v2": "^1.11.1",
+    "@circle-fin/app-kit": "^1.6.1",
+    "@circle-fin/bridge-kit": "^1.10.1",
+    "@circle-fin/swap-kit": "^1.2.2",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@rainbow-me/rainbowkit": "^2.2.11",

@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: false,
   webpack: (config) => {
     // These packages are optional dependencies of MetaMask SDK and WalletConnect
     // that don't exist in a browser/Next.js build — safe to ignore.
