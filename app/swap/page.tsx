@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   useAccount,
@@ -8,6 +8,8 @@ import {
   useBalance,
   useChainId,
   useSwitchChain,
+  useWriteContract,
+  usePublicClient,
 } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { parseUnits, formatUnits } from "viem";
@@ -15,36 +17,31 @@ import {
   STELFI_SWAP_ADDRESS,
   STELFI_SWAP_ABI,
   TOKEN_ADDRESSES,
+  ERC20_ABI,
 } from "@/lib/contracts";
 import {
   fadeUpVariants,
   scaleInVariants,
 } from "@/lib/animations";
-import { getAppKit, createBrowserAdapter, KIT_KEY, SwapChain } from "@/lib/appkit";
 
 // ── Token config ──────────────────────────────────────────────
 const TOKENS: Record<string, {
   symbol: string; name: string; decimals: number;
   color: string; icon: string;
-  appKitId: string | null; supported: boolean;
 }> = {
-  USDC: { symbol: "USDC", name: "USD Coin",         decimals: 6, color: "#2775CA", icon: "$",  appKitId: "USDC", supported: true  },
-  EURC: { symbol: "EURC", name: "Euro Coin",         decimals: 6, color: "#0052B4", icon: "€",  appKitId: "EURC", supported: true  },
-  BRLA: { symbol: "BRLA", name: "Brazilian Real",    decimals: 6, color: "#009C3B", icon: "R$", appKitId: null,   supported: false },
-  MXNB: { symbol: "MXNB", name: "Mexican Peso",      decimals: 6, color: "#006847", icon: "MX$",appKitId: null,   supported: false },
-  PHPC: { symbol: "PHPC", name: "Philippine Peso",   decimals: 6, color: "#0038A8", icon: "₱",  appKitId: null,   supported: false },
-  JPYC: { symbol: "JPYC", name: "Japanese Yen",      decimals: 6, color: "#BC002D", icon: "¥",  appKitId: null,   supported: false },
-  KRW1: { symbol: "KRW1", name: "Korean Won",        decimals: 6, color: "#003478", icon: "₩",  appKitId: null,   supported: false },
+  USDC: { symbol: "USDC", name: "USD Coin",         decimals: 6, color: "#2775CA", icon: "$"  },
+  EURC: { symbol: "EURC", name: "Euro Coin",         decimals: 6, color: "#0052B4", icon: "€"  },
+  BRLA: { symbol: "BRLA", name: "Brazilian Real",    decimals: 6, color: "#009C3B", icon: "R$" },
+  MXNB: { symbol: "MXNB", name: "Mexican Peso",      decimals: 6, color: "#006847", icon: "MX$"},
+  PHPC: { symbol: "PHPC", name: "Philippine Peso",   decimals: 6, color: "#0038A8", icon: "₱"  },
+  JPYC: { symbol: "JPYC", name: "Japanese Yen",      decimals: 6, color: "#BC002D", icon: "¥"  },
+  KRW1: { symbol: "KRW1", name: "Korean Won",        decimals: 6, color: "#003478", icon: "₩"  },
 };
 
 const FROM_TOKENS = ["USDC", "EURC"];
-// EURC first — it's the only live pair on Arc Testnet right now
 const TO_TOKENS   = ["EURC", "USDC", "BRLA", "MXNB", "PHPC", "JPYC", "KRW1"];
 
-// Tokens supported by Arc App Kit (USDC ↔ EURC is the live pair on Arc Testnet).
-// This is the single source of truth — do NOT gate on KIT_KEY or .supported flags.
-const SUPPORTED_APP_KIT_TOKENS = ["USDC", "EURC"] as const;
-
+// Fallback indicative rates shown when contract has no pair configured yet
 const MOCK_RATES: Record<string, Record<string, number>> = {
   USDC: { EURC: 0.92,  BRLA: 5.87,  MXNB: 17.2,  PHPC: 58.4,  JPYC: 149.3,  KRW1: 1342.5, USDC: 1 },
   EURC: { USDC: 1.087, BRLA: 6.38,  MXNB: 18.7,  PHPC: 63.5,  JPYC: 162.3,  KRW1: 1459.8, EURC: 1 },
@@ -56,16 +53,6 @@ const MOCK_RATES: Record<string, Record<string, number>> = {
 };
 
 type SwapPhase = "idle" | "approving" | "waitingApproval" | "swapping" | "success" | "error";
-
-// ── Timeout wrapper ───────────────────────────────────────────
-function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(message)), ms)
-    ),
-  ]);
-}
 
 function formatBalance(balance: bigint | undefined, decimals: number): string {
   if (balance === undefined) return "--";
@@ -146,7 +133,7 @@ function PhaseLabel({ phase }: { phase: SwapPhase }) {
     idle:            "Swap Now",
     approving:       "Step 1/2: Approve in Wallet…",
     waitingApproval: "Step 1/2: Confirming Approval…",
-    swapping:        "Step 2/2: Confirm in Wallet…",
+    swapping:        "Step 2/2: Confirm Swap in Wallet…",
     success:         "✓ Swap Complete!",
     error:           "↩ Try Again",
   };
@@ -172,18 +159,17 @@ export default function SwapPage() {
   const { isConnected, address } = useAccount();
   const chainId                  = useChainId();
   const { switchChainAsync }     = useSwitchChain();
+  const { writeContractAsync }   = useWriteContract();
+  // publicClient on Arc Testnet — used to wait for tx receipts
+  const publicClient             = usePublicClient({ chainId: 5042002 });
   const ARC_CHAIN_ID             = 5042002;
 
-  const [fromToken,     setFromToken]     = useState<string>("USDC");
-  const [toToken,       setToToken]       = useState<string>("EURC");
-  const [fromAmount,    setFromAmount]    = useState<string>("");
-  const [phase,         setPhase]         = useState<SwapPhase>("idle");
-  const [errorMsg,      setErrorMsg]      = useState<string>("");
-  const [swapTxHash,    setSwapTxHash]    = useState<string | undefined>();
-  // Live estimate from estimateSwap() — only set when bothSupported + connected + amount > 0
-  const [liveEstimate,  setLiveEstimate]  = useState<string>("");
-  const [liveRate,      setLiveRate]      = useState<string>("");
-  const [estimating,    setEstimating]    = useState(false);
+  const [fromToken, setFromToken] = useState<string>("USDC");
+  const [toToken,   setToToken]   = useState<string>("EURC");
+  const [fromAmount, setFromAmount] = useState<string>("");
+  const [phase,      setPhase]     = useState<SwapPhase>("idle");
+  const [errorMsg,   setErrorMsg]  = useState<string>("");
+  const [swapTxHash, setSwapTxHash] = useState<string | undefined>();
 
   // Derived config
   const fromTokenConfig = TOKENS[fromToken];
@@ -193,19 +179,13 @@ export default function SwapPage() {
   const fromDecimals = fromTokenConfig.decimals;
   const amountIn = fromAmount ? parseUnits(fromAmount, fromDecimals) : BigInt(0);
 
-  // Derive directly from the whitelist — never from the .supported flag or KIT_KEY.
-  const bothSupported =
-    (SUPPORTED_APP_KIT_TOKENS as readonly string[]).includes(fromToken) &&
-    (SUPPORTED_APP_KIT_TOKENS as readonly string[]).includes(toToken) &&
-    fromToken !== toToken;
-
   // ── Balances ─────────────────────────────────────────────────
   const { data: fromBalanceData, isLoading: fromBalLoading, refetch: refetchFrom } = useBalance({
     address,
     token: fromAddr || undefined,
     chainId: 5042002,
     query: {
-      enabled: !!address && !!fromAddr && !fromAddr.includes("PLACEHOLDER"),
+      enabled: !!address && !!fromAddr,
       refetchInterval: 15000,
     },
   });
@@ -214,37 +194,40 @@ export default function SwapPage() {
     token: toAddr || undefined,
     chainId: 5042002,
     query: {
-      enabled: !!address && !!toAddr && !toAddr.includes("PLACEHOLDER"),
+      enabled: !!address && !!toAddr,
       refetchInterval: 15000,
     },
   });
 
-  // ── Contract rate (existing StelfiSwap) ───────────────────────
+  // ── On-chain rate from StelfiSwap contract (all pairs) ────────
+  // Uses 1 USDC (1_000_000 units) as a probe when no amount is entered.
+  // A non-zero result means the pair is active in the contract.
   const { data: contractOut } = useReadContract({
     address: STELFI_SWAP_ADDRESS,
     abi: STELFI_SWAP_ABI,
     functionName: "getAmountOut",
     args: [fromAddr, toAddr, amountIn > BigInt(0) ? amountIn : BigInt(1_000_000)],
-    query: { enabled: !!fromAddr && !!toAddr && !!STELFI_SWAP_ADDRESS && !bothSupported },
+    query: {
+      enabled: !!fromAddr && !!toAddr && !!STELFI_SWAP_ADDRESS,
+    },
   });
 
   const contractAmountOut = contractOut ? (contractOut as [bigint, bigint])[0] : BigInt(0);
   const contractFee       = contractOut ? (contractOut as [bigint, bigint])[1] : BigInt(0);
-  const usingLiveRate     = !bothSupported && contractAmountOut > BigInt(0);
+
+  // Pair is "live" when the contract returns a real non-zero rate
+  const pairIsLive = contractAmountOut > BigInt(0);
 
   // ── Compute displayed output ──────────────────────────────────
   let toAmount   = "";
   let displayFee = "0";
   if (fromAmount && parseFloat(fromAmount) > 0) {
-    if (bothSupported && liveEstimate) {
-      // Real rate from estimateSwap() — most accurate
-      toAmount   = parseFloat(liveEstimate).toFixed(4);
-      // App Kit fee is ~0.02% provider + any custom fee; show 0 until estimate includes fees
-      displayFee = "0.00";
-    } else if (usingLiveRate) {
+    if (pairIsLive) {
+      // Real on-chain rate from StelfiSwap
       toAmount   = formatUnits(contractAmountOut, 6);
       displayFee = formatUnits(contractFee, 6);
     } else {
+      // Indicative fallback — pair not yet in contract
       const rate    = MOCK_RATES[fromToken]?.[toToken] ?? 1;
       const mockFee = parseFloat(fromAmount) * 0.003;
       toAmount   = ((parseFloat(fromAmount) - mockFee) * rate).toFixed(4);
@@ -252,105 +235,25 @@ export default function SwapPage() {
     }
   }
 
-  const rateDisplay = bothSupported && liveRate
-    ? `1 ${fromToken} ≈ ${parseFloat(liveRate).toFixed(4)} ${toToken} (live)`
-    : bothSupported && estimating
-    ? `Fetching live rate…`
-    : bothSupported
-    ? `1 ${fromToken} ≈ ${MOCK_RATES[fromToken]?.[toToken] ?? "~"} ${toToken} (indicative)`
-    : usingLiveRate
-    ? `1 ${fromToken} ≈ ${(parseFloat(toAmount || "0") / parseFloat(fromAmount || "1")).toFixed(4)} ${toToken}`
-    : `1 ${fromToken} = ${MOCK_RATES[fromToken]?.[toToken] ?? "—"} ${toToken}`;
-
-  // ── Live estimate from App Kit (debounced 600 ms) ────────────
-  // Calls estimateSwap() with config.kitKey to get a real rate for
-  // supported pairs. Falls back silently to mock rates if it fails.
-  // NOTE: NEXT_PUBLIC_KIT_KEY is client-side — acceptable for testnet
-  // because browser-wallet signing (MetaMask) requires a client adapter.
-  useEffect(() => {
-    if (
-      !bothSupported ||
-      !isConnected   ||
-      !fromAmount    ||
-      parseFloat(fromAmount) <= 0
-    ) {
-      setLiveEstimate("");
-      setLiveRate("");
-      return;
-    }
-
-    setEstimating(true);
-    const timer = setTimeout(async () => {
-      try {
-        const adapter = await createBrowserAdapter();
-        if (!adapter) { setEstimating(false); return; }
-        const kit = getAppKit();
-        const est = await kit.estimateSwap({
-          from:     { adapter, chain: SwapChain.Arc_Testnet },
-          tokenIn:  fromToken,
-          tokenOut: toToken,
-          amountIn: fromAmount,
-          config:   { kitKey: KIT_KEY },
-        });
-        setLiveEstimate(est.estimatedOutput.amount);
-        // derive per-unit rate: estimatedOutput / amountIn
-        const rate = parseFloat(est.estimatedOutput.amount) / parseFloat(fromAmount);
-        setLiveRate(rate.toFixed(6));
-      } catch {
-        setLiveEstimate("");
-        setLiveRate("");
-      } finally {
-        setEstimating(false);
-      }
-    }, 600);
-
-    return () => {
-      clearTimeout(timer);
-      setEstimating(false);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bothSupported, isConnected, fromAmount, fromToken, toToken]);
+  const rateDisplay = pairIsLive && fromAmount && parseFloat(fromAmount) > 0
+    ? `1 ${fromToken} ≈ ${(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(4)} ${toToken} (live)`
+    : pairIsLive
+    ? `Live rate · enter an amount`
+    : `1 ${fromToken} = ${MOCK_RATES[fromToken]?.[toToken] ?? "—"} ${toToken} (indicative)`;
 
   // ── Safety timeout: 120s absolute escape hatch ───────────────
-  useEffect(() => {
-    let t: ReturnType<typeof setTimeout>;
-    if (
-      phase === "approving" ||
-      phase === "waitingApproval" ||
-      phase === "swapping"
-    ) {
-      t = setTimeout(() => {
-        setPhase("error");
-        setErrorMsg(
-          "Operation timed out. Check ArcScan at testnet.arcscan.app to see if your transaction went through, then try again."
-        );
-      }, 120000);
-    }
-    return () => clearTimeout(t);
-  }, [phase]);
+  // (kept as belt-and-suspenders in case publicClient.waitForTransactionReceipt hangs)
+  // The actual timeout is handled per-step inside the handler.
 
-  // ── Swap handler ──────────────────────────────────────────────
-  // App Kit handles both approval + swap internally.
-  // It prompts the wallet TWICE:
-  //   1st popup → Approve token spending
-  //   2nd popup → Confirm swap transaction
-  const handleAppKitSwap = async () => {
+  // ── Swap handler — direct StelfiSwap contract call ────────────
+  // Flow: approve token → wait for receipt → swap → wait for receipt → success.
+  // Both steps produce a MetaMask popup. No server-side wallet is involved.
+  const handleDirectSwap = async () => {
     if (!address || !fromAmount || parseFloat(fromAmount) <= 0) return;
     setErrorMsg("");
     setSwapTxHash(undefined);
 
-    if (!bothSupported) {
-      setPhase("error");
-      setErrorMsg(
-        `${fromToken} → ${toToken} is not yet supported. ` +
-        `Please select USDC or EURC as both tokens.`
-      );
-      return;
-    }
-
-    // Arc Testnet check — MetaMask must be on chain 5042002.
-    // Wrong chain = App Kit builds an adapter for the wrong network and fails
-    // internally before MetaMask ever shows a popup.
+    // ── Chain guard: must be on Arc Testnet ─────────────────────
     if (chainId !== ARC_CHAIN_ID) {
       try {
         setPhase("approving");
@@ -366,89 +269,84 @@ export default function SwapPage() {
     }
 
     try {
-      const adapter = await createBrowserAdapter();
-      if (!adapter) throw new Error("No wallet connected. Please unlock MetaMask.");
+      const amountInBigInt = parseUnits(fromAmount, fromDecimals);
 
-      const kit = getAppKit();
-
-      // Phase 1: Wallet will show approval popup
+      // ── Step 1: Approve StelfiSwap to spend fromToken ─────────
+      console.log("[Stelfi] Step 1/2 — approve", fromToken, "amount:", amountInBigInt.toString());
       setPhase("approving");
 
-      // After ~3s (typical approval confirm time), switch UI to waitingApproval.
-      // App Kit calls handleEvmTokenApproval internally then proceeds to swap.
-      // The timer is cosmetic — actual state is driven by promise resolution.
-      const approvalTimer = setTimeout(() => setPhase("waitingApproval"), 3000);
-      // After ~6s, switch to swapping phase (approval done, swap tx being sent)
-      const swapTimer = setTimeout(() => setPhase("swapping"), 6000);
+      const approveTxHash = await writeContractAsync({
+        address:      fromAddr,
+        abi:          ERC20_ABI,
+        functionName: "approve",
+        args:         [STELFI_SWAP_ADDRESS, amountInBigInt],
+        chainId:      ARC_CHAIN_ID,
+      });
 
-      // Build config — include kitKey only when present; App Kit can attempt
-      // without it on Arc Testnet but will error clearly if it requires one.
-      const swapCfg = KIT_KEY ? { kitKey: KIT_KEY } : undefined;
+      console.log("[Stelfi] Approve tx submitted:", approveTxHash);
+      setPhase("waitingApproval");
 
-      if (process.env.NODE_ENV === "development") {
-        console.log("[Stelfi] kit.swap() called", { fromToken, toToken, fromAmount, hasKey: !!KIT_KEY });
-      }
+      // Wait for approval to be mined before proceeding
+      if (!publicClient) throw new Error("No RPC connection to Arc Testnet. Please check your network.");
+      await publicClient.waitForTransactionReceipt({ hash: approveTxHash, confirmations: 1 });
+      console.log("[Stelfi] Approval confirmed — submitting swap");
 
-      let result: unknown;
-      try {
-        result = await withTimeout(
-          kit.swap({
-            from:     { adapter, chain: SwapChain.Arc_Testnet },
-            tokenIn:  fromToken,
-            tokenOut: toToken,
-            amountIn: fromAmount,
-            ...(swapCfg ? { config: swapCfg } : {}),
-          }),
-          120000,
-          "Swap timed out after 2 minutes. Check ArcScan at testnet.arcscan.app to see if your transaction went through."
-        );
-      } finally {
-        clearTimeout(approvalTimer);
-        clearTimeout(swapTimer);
-      }
+      // ── Step 2: Execute the swap ──────────────────────────────
+      setPhase("swapping");
+      console.log("[Stelfi] Step 2/2 — swap", fromToken, "→", toToken, "amount:", amountInBigInt.toString());
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const hash = (result as any)?.transactionHash || (result as any)?.txHash || "";
-      setSwapTxHash(hash);
+      const swapHash = await writeContractAsync({
+        address:      STELFI_SWAP_ADDRESS,
+        abi:          STELFI_SWAP_ABI,
+        functionName: "swap",
+        args:         [fromAddr, toAddr, amountInBigInt],
+        chainId:      ARC_CHAIN_ID,
+      });
+
+      console.log("[Stelfi] Swap tx submitted:", swapHash);
+      await publicClient.waitForTransactionReceipt({ hash: swapHash, confirmations: 1 });
+      console.log("[Stelfi] Swap confirmed!");
+
+      setSwapTxHash(swapHash);
       setPhase("success");
 
-      // Refresh balances after tx settles
-      setTimeout(() => { refetchFrom(); refetchTo(); }, 3000);
-      // Auto-reset after 10s so user can swap again
-      setTimeout(reset, 10000);
+      // Refresh balances after settlement
+      setTimeout(() => { refetchFrom(); refetchTo(); }, 2000);
+      // Auto-reset after 12s so user can swap again
+      setTimeout(reset, 12000);
 
     } catch (e: unknown) {
       const err = e as { code?: number; shortMessage?: string; message?: string };
       const msg = err?.shortMessage || err?.message || "";
       const msgLow = msg.toLowerCase();
 
-      // Only treat as user-rejection when the wallet explicitly rejected (EIP-1193 code 4001)
-      // or the message is the standard rejection phrase. Do NOT match broad words like
-      // "cancelled" — App Kit throws those internally for route failures.
       if (
         err?.code === 4001 ||
-        msgLow === "user rejected the request." ||
-        msgLow.includes("user rejected the request") ||
-        msgLow.includes("user denied transaction")
+        msgLow.includes("user rejected") ||
+        msgLow.includes("user denied")
       ) {
-        setErrorMsg("Transaction rejected — you cancelled the wallet request. Click Try Again to retry.");
-      } else if (msgLow.includes("timed out")) {
-        setErrorMsg(msg);
+        setErrorMsg("Transaction cancelled — you declined the wallet request. Click Try Again to retry.");
       } else if (msgLow.includes("insufficient") || msgLow.includes("balance")) {
-        setErrorMsg("Insufficient balance. Make sure you have enough USDC/EURC plus gas fees.");
+        setErrorMsg(
+          "Insufficient balance. Make sure you have enough " + fromToken +
+          " plus USDC for gas fees (Arc Testnet uses USDC as gas)."
+        );
       } else if (
-        msgLow.includes("kit key") || msgLow.includes("kitkey") ||
-        msgLow.includes("api key") || msgLow.includes("unauthorized") ||
-        msgLow.includes("forbidden")
+        msgLow.includes("pair") ||
+        msgLow.includes("not active") ||
+        msgLow.includes("inactive") ||
+        msgLow.includes("not supported")
       ) {
         setErrorMsg(
-          "A Circle Kit Key is required. Get your free key at console.circle.com → Keys → Kit Keys, " +
-          "then add NEXT_PUBLIC_KIT_KEY to your Vercel environment variables and redeploy."
+          `${fromToken} → ${toToken} is not yet active in the StelfiSwap contract. ` +
+          `The contract owner needs to call addPair() to enable this pair.`
         );
+      } else if (msgLow.includes("no rpc") || msgLow.includes("network")) {
+        setErrorMsg("Network error — check your MetaMask connection to Arc Testnet and try again.");
       } else {
-        // Show the real App Kit error — never mask it with a generic "not available" message
-        console.error("[Stelfi] Swap error:", err);
-        setErrorMsg(msg || "Swap failed. Please try again.");
+        // Always log the real error so it can be debugged
+        console.error("[Stelfi] Swap error (full):", err);
+        setErrorMsg(msg || "Swap failed — check the browser console for details and try again.");
       }
       setPhase("error");
     }
@@ -492,8 +390,6 @@ export default function SwapPage() {
     setErrorMsg("");
     setFromAmount("");
     setSwapTxHash(undefined);
-    setLiveEstimate("");
-    setLiveRate("");
   }
 
   const isLoading = phase === "approving" || phase === "waitingApproval" || phase === "swapping";
@@ -671,7 +567,7 @@ export default function SwapPage() {
 
           {/* Pair status indicator */}
           <AnimatePresence>
-            {bothSupported ? (
+            {pairIsLive ? (
               <motion.div
                 key="live"
                 initial={{ opacity: 0, y: -6 }}
@@ -687,7 +583,7 @@ export default function SwapPage() {
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" style={{ flexShrink: 0 }} />
                 <span style={{ color: "#00D4AA", fontSize: 12, fontWeight: 600 }}>
-                  Live swap · Arc App Kit (LiFi aggregator)
+                  Live swap · StelfiSwap contract on Arc Testnet
                 </span>
               </motion.div>
             ) : (
@@ -704,7 +600,7 @@ export default function SwapPage() {
                 }}
               >
                 <p style={{ color: "#FFB547", fontSize: 12, margin: 0 }}>
-                  ⚡ Switch to USDC ↔ EURC for live App Kit swaps. Other pairs are indicative only.
+                  ⚡ Indicative rate — this pair is not yet active in the StelfiSwap contract.
                 </p>
               </motion.div>
             )}
@@ -729,23 +625,11 @@ export default function SwapPage() {
               <span className="flex items-center gap-1.5">
                 <span
                   className="w-1.5 h-1.5 rounded-full inline-block"
-                  style={{
-                    backgroundColor:
-                      bothSupported && liveRate ? "#00D4AA"
-                      : usingLiveRate            ? "#00D4AA"
-                      : estimating               ? "#FFB547"
-                      : "#8B9EC7",
-                  }}
+                  style={{ backgroundColor: pairIsLive ? "#00D4AA" : "#8B9EC7" }}
                 />
-                {bothSupported && liveRate
-                  ? <span style={{ color: "#00D4AA" }}>Live · Arc App Kit (LiFi)</span>
-                  : bothSupported && estimating
-                  ? <span style={{ color: "#FFB547" }}>Fetching live rate…</span>
-                  : bothSupported
-                  ? <span style={{ color: "#8B9EC7" }}>Enter an amount for live rate</span>
-                  : usingLiveRate
-                  ? <span style={{ color: "#00D4AA" }}>Live rate from contract</span>
-                  : <span style={{ color: "#8B9EC7" }}>Indicative rate — pair coming soon</span>}
+                {pairIsLive
+                  ? <span style={{ color: "#00D4AA" }}>StelfiSwap contract (on-chain rate)</span>
+                  : <span style={{ color: "#8B9EC7" }}>Indicative — pair coming soon</span>}
               </span>
             </div>
             <div className="flex justify-between">
@@ -757,7 +641,7 @@ export default function SwapPage() {
           {/* Action button */}
           {isConnected ? (
             <motion.button
-              onClick={phase === "error" || phase === "success" ? reset : handleAppKitSwap}
+              onClick={phase === "error" || phase === "success" ? reset : handleDirectSwap}
               disabled={isLoading || (!fromAmount && phase !== "error" && phase !== "success")}
               whileHover={!isLoading ? { scale: 1.02 } : {}}
               whileTap={!isLoading ? { scale: 0.98 } : {}}
