@@ -36,7 +36,8 @@ const TOKENS: Record<string, {
 };
 
 const FROM_TOKENS = ["USDC", "EURC"];
-const TO_TOKENS   = ["BRLA", "MXNB", "PHPC", "JPYC", "KRW1", "EURC", "USDC"];
+// EURC first — it's the only live pair on Arc Testnet right now
+const TO_TOKENS   = ["EURC", "USDC", "BRLA", "MXNB", "PHPC", "JPYC", "KRW1"];
 
 const MOCK_RATES: Record<string, Record<string, number>> = {
   USDC: { EURC: 0.92,  BRLA: 5.87,  MXNB: 17.2,  PHPC: 58.4,  JPYC: 149.3,  KRW1: 1342.5, USDC: 1 },
@@ -164,12 +165,16 @@ function PhaseLabel({ phase }: { phase: SwapPhase }) {
 export default function SwapPage() {
   const { isConnected, address } = useAccount();
 
-  const [fromToken,  setFromToken]  = useState<string>("USDC");
-  const [toToken,    setToToken]    = useState<string>("BRLA");
-  const [fromAmount, setFromAmount] = useState<string>("");
-  const [phase,      setPhase]      = useState<SwapPhase>("idle");
-  const [errorMsg,   setErrorMsg]   = useState<string>("");
-  const [swapTxHash, setSwapTxHash] = useState<string | undefined>();
+  const [fromToken,     setFromToken]     = useState<string>("USDC");
+  const [toToken,       setToToken]       = useState<string>("EURC");
+  const [fromAmount,    setFromAmount]    = useState<string>("");
+  const [phase,         setPhase]         = useState<SwapPhase>("idle");
+  const [errorMsg,      setErrorMsg]      = useState<string>("");
+  const [swapTxHash,    setSwapTxHash]    = useState<string | undefined>();
+  // Live estimate from estimateSwap() — only set when bothSupported + connected + amount > 0
+  const [liveEstimate,  setLiveEstimate]  = useState<string>("");
+  const [liveRate,      setLiveRate]      = useState<string>("");
+  const [estimating,    setEstimating]    = useState(false);
 
   // Derived config
   const fromTokenConfig = TOKENS[fromToken];
@@ -218,7 +223,12 @@ export default function SwapPage() {
   let toAmount   = "";
   let displayFee = "0";
   if (fromAmount && parseFloat(fromAmount) > 0) {
-    if (usingLiveRate) {
+    if (bothSupported && liveEstimate) {
+      // Real rate from estimateSwap() — most accurate
+      toAmount   = parseFloat(liveEstimate).toFixed(4);
+      // App Kit fee is ~0.02% provider + any custom fee; show 0 until estimate includes fees
+      displayFee = "0.00";
+    } else if (usingLiveRate) {
       toAmount   = formatUnits(contractAmountOut, 6);
       displayFee = formatUnits(contractFee, 6);
     } else {
@@ -229,11 +239,65 @@ export default function SwapPage() {
     }
   }
 
-  const rateDisplay = bothSupported
-    ? `1 ${fromToken} ≈ ${MOCK_RATES[fromToken]?.[toToken] ?? "~"} ${toToken} (App Kit)`
+  const rateDisplay = bothSupported && liveRate
+    ? `1 ${fromToken} ≈ ${parseFloat(liveRate).toFixed(4)} ${toToken} (live)`
+    : bothSupported && estimating
+    ? `Fetching live rate…`
+    : bothSupported
+    ? `1 ${fromToken} ≈ ${MOCK_RATES[fromToken]?.[toToken] ?? "~"} ${toToken} (indicative)`
     : usingLiveRate
     ? `1 ${fromToken} ≈ ${(parseFloat(toAmount || "0") / parseFloat(fromAmount || "1")).toFixed(4)} ${toToken}`
     : `1 ${fromToken} = ${MOCK_RATES[fromToken]?.[toToken] ?? "—"} ${toToken}`;
+
+  // ── Live estimate from App Kit (debounced 600 ms) ────────────
+  // Calls estimateSwap() with config.kitKey to get a real rate for
+  // supported pairs. Falls back silently to mock rates if it fails.
+  // NOTE: NEXT_PUBLIC_KIT_KEY is client-side — acceptable for testnet
+  // because browser-wallet signing (MetaMask) requires a client adapter.
+  useEffect(() => {
+    if (
+      !bothSupported ||
+      !isConnected   ||
+      !fromAmount    ||
+      parseFloat(fromAmount) <= 0 ||
+      !KIT_KEY
+    ) {
+      setLiveEstimate("");
+      setLiveRate("");
+      return;
+    }
+
+    setEstimating(true);
+    const timer = setTimeout(async () => {
+      try {
+        const adapter = await createBrowserAdapter();
+        if (!adapter) { setEstimating(false); return; }
+        const kit = getAppKit();
+        const est = await kit.estimateSwap({
+          from:     { adapter, chain: SwapChain.Arc_Testnet },
+          tokenIn:  fromToken,
+          tokenOut: toToken,
+          amountIn: fromAmount,
+          config:   { kitKey: KIT_KEY },
+        });
+        setLiveEstimate(est.estimatedOutput.amount);
+        // derive per-unit rate: estimatedOutput / amountIn
+        const rate = parseFloat(est.estimatedOutput.amount) / parseFloat(fromAmount);
+        setLiveRate(rate.toFixed(6));
+      } catch {
+        setLiveEstimate("");
+        setLiveRate("");
+      } finally {
+        setEstimating(false);
+      }
+    }, 600);
+
+    return () => {
+      clearTimeout(timer);
+      setEstimating(false);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bothSupported, isConnected, fromAmount, fromToken, toToken]);
 
   // ── Safety timeout: 120s absolute escape hatch ───────────────
   useEffect(() => {
@@ -303,6 +367,7 @@ export default function SwapPage() {
             tokenIn:  fromToken,
             tokenOut: toToken,
             amountIn: fromAmount,
+            config:   { kitKey: KIT_KEY },   // ← required for App Kit routing
           }),
           120000,
           "Swap timed out after 2 minutes. Check ArcScan at testnet.arcscan.app to see if your transaction went through."
@@ -385,6 +450,8 @@ export default function SwapPage() {
     setErrorMsg("");
     setFromAmount("");
     setSwapTxHash(undefined);
+    setLiveEstimate("");
+    setLiveRate("");
   }
 
   const isLoading = phase === "approving" || phase === "waitingApproval" || phase === "swapping";
@@ -602,10 +669,20 @@ export default function SwapPage() {
               <span className="flex items-center gap-1.5">
                 <span
                   className="w-1.5 h-1.5 rounded-full inline-block"
-                  style={{ backgroundColor: bothSupported ? "#00D4AA" : usingLiveRate ? "#00D4AA" : "#8B9EC7" }}
+                  style={{
+                    backgroundColor:
+                      bothSupported && liveRate ? "#00D4AA"
+                      : usingLiveRate            ? "#00D4AA"
+                      : estimating               ? "#FFB547"
+                      : "#8B9EC7",
+                  }}
                 />
-                {bothSupported
-                  ? <span style={{ color: "#00D4AA" }}>Live rate via Arc App Kit</span>
+                {bothSupported && liveRate
+                  ? <span style={{ color: "#00D4AA" }}>Live · Arc App Kit (LiFi)</span>
+                  : bothSupported && estimating
+                  ? <span style={{ color: "#FFB547" }}>Fetching live rate…</span>
+                  : bothSupported
+                  ? <span style={{ color: "#8B9EC7" }}>Enter an amount for live rate</span>
                   : usingLiveRate
                   ? <span style={{ color: "#00D4AA" }}>Live rate from contract</span>
                   : <span style={{ color: "#8B9EC7" }}>Indicative rate — pair coming soon</span>}
