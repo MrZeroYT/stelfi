@@ -70,26 +70,29 @@ function TokenSelect({
 }) {
   const t = TOKENS[value];
   return (
-    <div className="relative">
+    <div className="relative" style={{ minWidth: "140px" }}>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="appearance-none w-full rounded-xl px-4 py-3 text-sm font-bold text-white outline-none cursor-pointer pr-8"
+        className="appearance-none w-full rounded-xl text-base font-bold text-white outline-none cursor-pointer"
         style={{
           background: "rgba(255,255,255,0.06)",
           border: "1px solid rgba(255,255,255,0.1)",
+          padding: "10px 36px 10px 14px",
+          minWidth: "140px",
+          whiteSpace: "nowrap",
         }}
       >
         {options.map((sym) => (
-          <option key={sym} value={sym} style={{ background: "#0D1526" }}>
+          <option key={sym} value={sym} style={{ background: "#0D1526", padding: "12px 16px" }}>
             {TOKENS[sym].icon}  {sym} — {TOKENS[sym].name}
           </option>
         ))}
       </select>
       <div
-        className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-sm"
-        style={{ background: t.color }}
+        className="absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full pointer-events-none"
+        style={{ background: t.color, boxShadow: `0 0 6px ${t.color}80` }}
       />
     </div>
   );
@@ -236,17 +239,29 @@ export default function SwapPage() {
     }
   }, [swapConfirmed, phase, refetchFrom, refetchTo]);
 
-  function handleSwapDirection() {
-    if (FROM_TOKENS.includes(toToken)) {
-      const tmp = fromToken;
-      setFromToken(toToken);
-      setToToken(tmp);
+  const handleSwapDirection = useCallback(() => {
+    const currentFrom = fromToken;
+    const currentTo   = toToken;
+    const currentOut  = toAmount;
+
+    // Only swap if both tokens can be FROM tokens, otherwise just flip what we can
+    if (FROM_TOKENS.includes(currentTo)) {
+      setFromToken(currentTo);
+      setToToken(currentFrom);
     } else {
-      setToToken(fromToken);
+      // toToken isn't a valid FROM — keep fromToken, just reset toToken
+      setToToken(currentFrom);
     }
-    setFromAmount("");
+    // Carry computed output into the new input if it was a valid number
+    if (currentOut && parseFloat(currentOut) > 0) {
+      setFromAmount(parseFloat(currentOut).toFixed(6));
+    } else {
+      setFromAmount("");
+    }
     setPhase("idle");
-  }
+    setSwapTxHash(undefined);
+    setApproveTxHash(undefined);
+  }, [fromToken, toToken, toAmount]);
 
   async function handleSwapClick() {
     if (!fromAmount || parseFloat(fromAmount) <= 0) return;
@@ -337,10 +352,10 @@ export default function SwapPage() {
               </div>
             </div>
             <div
-              className="flex gap-3 rounded-xl p-4"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+              className="flex gap-3 rounded-xl p-4 items-center"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", minHeight: "80px" }}
             >
-              <div className="w-44">
+              <div style={{ minWidth: "140px" }}>
                 <TokenSelect
                   value={fromToken}
                   options={FROM_TOKENS}
@@ -395,10 +410,10 @@ export default function SwapPage() {
               )}
             </div>
             <div
-              className="flex gap-3 rounded-xl p-4"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+              className="flex gap-3 rounded-xl p-4 items-center"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", minHeight: "80px" }}
             >
-              <div className="w-44">
+              <div style={{ minWidth: "140px" }}>
                 <TokenSelect
                   value={toToken}
                   options={TO_TOKENS}

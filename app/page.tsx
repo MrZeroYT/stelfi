@@ -220,13 +220,79 @@ export default function HomePage() {
         ))}
       </motion.div>
 
+      {/* Contact CTA */}
+      <motion.section
+        variants={fadeUpVariants}
+        whileInView="animate"
+        initial="initial"
+        viewport={{ once: true }}
+        className="w-full max-w-2xl mt-8 mb-8"
+      >
+        <div
+          className="glass-card p-12 text-center"
+          style={{ border: "1px solid rgba(0,212,170,0.2)", boxShadow: "0 0 40px rgba(0,212,170,0.06)" }}
+        >
+          <span
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold border mb-6"
+            style={{ color: "#00D4AA", borderColor: "rgba(0,212,170,0.3)", backgroundColor: "rgba(0,212,170,0.08)" }}
+          >
+            Get in Touch
+          </span>
+          <h2 className="text-2xl font-black text-white mb-4">Questions? We Are Here.</h2>
+          <p className="text-sm leading-relaxed mb-8" style={{ color: "#8B9EC7" }}>
+            Have a question about Stelfi, want to report an issue, or interested in building on Arc
+            Network together? We read every message personally.
+          </p>
+          <Link
+            href="/contact"
+            className="btn-primary inline-flex items-center justify-center px-8 rounded-xl font-bold text-base no-underline mb-4"
+            style={{ background: "linear-gradient(135deg,#00D4AA,#00B8A0)", color: "#050A14", height: "52px" }}
+          >
+            Contact Us →
+          </Link>
+          <p className="text-xs mt-3" style={{ color: "#4A5568" }}>
+            or email us at{" "}
+            <a
+              href="mailto:Soladoyeabdulkabir@gmail.com"
+              className="underline"
+              style={{ color: "#8B9EC7" }}
+            >
+              Soladoyeabdulkabir@gmail.com
+            </a>
+          </p>
+        </div>
+      </motion.section>
+
       {/* Footer */}
       <motion.footer
         variants={fadeUpVariants}
-        className="text-xs text-center"
-        style={{ color: "#4A5568" }}
+        className="w-full max-w-2xl mt-8 pt-8 text-center"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
       >
-        Built on Arc Network · Powered by USDC · © 2026 Stelfi
+        <div className="mb-4">
+          <span className="text-2xl font-black glow-text">Stelfi</span>
+          <p className="text-sm mt-1" style={{ color: "#8B9EC7" }}>Stellar Finance. Simplified.</p>
+        </div>
+        <div className="flex justify-center gap-6 mb-4 flex-wrap">
+          {[
+            { href: "/swap",    label: "Swap"       },
+            { href: "/predict", label: "Predict"    },
+            { href: "/about",   label: "About"      },
+            { href: "/contact", label: "Contact Us" },
+          ].map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-sm no-underline transition-colors hover:text-white"
+              style={{ color: "#8B9EC7" }}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+        <p className="text-xs" style={{ color: "#4A5568" }}>
+          Built on Arc Network · Powered by USDC · © 2026 Stelfi
+        </p>
       </motion.footer>
     </motion.div>
   );

@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 interface Particle {
@@ -11,7 +10,6 @@ interface Particle {
   duration: number;
   delay: number;
   opacity: number;
-  driftX: number;
 }
 
 export default function ParticleField() {
@@ -19,23 +17,26 @@ export default function ParticleField() {
 
   useEffect(() => {
     setParticles(
-      Array.from({ length: 20 }, (_, i) => ({
+      Array.from({ length: 12 }, (_, i) => ({
         id: i,
         x: Math.random() * 100,
         y: Math.random() * 100,
-        size: Math.random() * 3 + 1,
+        size: Math.random() * 2.5 + 1,
         duration: Math.random() * 10 + 8,
-        delay: Math.random() * 5,
-        opacity: Math.random() * 0.3 + 0.05,
-        driftX: Math.random() * 20 - 10,
+        delay: Math.random() * 6,
+        opacity: Math.random() * 0.25 + 0.05,
       }))
     );
   }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
+    <div
+      className="fixed inset-0 pointer-events-none overflow-hidden"
+      style={{ zIndex: 0 }}
+      aria-hidden="true"
+    >
       {particles.map((p) => (
-        <motion.div
+        <div
           key={p.id}
           className="absolute rounded-full"
           style={{
@@ -45,17 +46,9 @@ export default function ParticleField() {
             height: p.size,
             background: "#00D4AA",
             opacity: p.opacity,
-          }}
-          animate={{
-            y: [0, -30, 0],
-            x: [0, p.driftX, 0],
-            opacity: [p.opacity, p.opacity * 2, p.opacity],
-          }}
-          transition={{
-            duration: p.duration,
-            delay: p.delay,
-            repeat: Infinity,
-            ease: "easeInOut",
+            animation: `float-particle ${p.duration}s ${p.delay}s ease-in-out infinite`,
+            willChange: "transform",
+            transform: "translateZ(0)",
           }}
         />
       ))}

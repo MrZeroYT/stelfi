@@ -1,22 +1,16 @@
 import { Variants } from "framer-motion";
 
 export const pageVariants: Variants = {
-  initial: { opacity: 0, y: 20, scale: 0.99 },
+  initial: { opacity: 0, y: 10 },
   animate: {
     opacity: 1,
     y: 0,
-    scale: 1,
-    transition: {
-      duration: 0.5,
-      ease: [0.4, 0, 0.2, 1],
-      staggerChildren: 0.1,
-    },
+    transition: { duration: 0.25, ease: "easeOut" },
   },
   exit: {
     opacity: 0,
-    y: -20,
-    scale: 0.99,
-    transition: { duration: 0.3, ease: [0.4, 0, 1, 1] },
+    y: -5,
+    transition: { duration: 0.15, ease: "easeIn" },
   },
 };
 
@@ -32,16 +26,16 @@ export const fadeUpVariants: Variants = {
 export const staggerContainer: Variants = {
   initial: {},
   animate: {
-    transition: { staggerChildren: 0.12, delayChildren: 0.1 },
+    transition: { staggerChildren: 0.06, delayChildren: 0.05 },
   },
 };
 
 export const staggerItem: Variants = {
-  initial: { opacity: 0, y: 30 },
+  initial: { opacity: 0, y: 20 },
   animate: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] },
+    transition: { duration: 0.3, ease: "easeOut" },
   },
 };
 

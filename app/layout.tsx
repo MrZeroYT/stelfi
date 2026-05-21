@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Layout } from "@/components/Layout";
@@ -21,7 +22,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <Providers>
-          <Layout>{children}</Layout>
+          <Suspense fallback={<div style={{ minHeight: "100vh", background: "#050A14" }} />}>
+            <Layout>{children}</Layout>
+          </Suspense>
         </Providers>
       </body>
     </html>
