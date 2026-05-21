@@ -259,8 +259,7 @@ export default function SwapPage() {
       !bothSupported ||
       !isConnected   ||
       !fromAmount    ||
-      parseFloat(fromAmount) <= 0 ||
-      !KIT_KEY
+      parseFloat(fromAmount) <= 0
     ) {
       setLiveEstimate("");
       setLiveRate("");
@@ -327,18 +326,13 @@ export default function SwapPage() {
     setErrorMsg("");
     setSwapTxHash(undefined);
 
-    const canUseAppKit =
-      bothSupported &&
-      !!KIT_KEY &&
-      KIT_KEY !== "" &&
-      KIT_KEY !== "undefined";
-
-    if (!canUseAppKit) {
-      // Pair not supported yet on Arc App Kit
+    // Gate only on whether the pair is supported — not on KIT_KEY presence.
+    // KIT_KEY is passed per-call; App Kit will surface its own error if missing.
+    if (!bothSupported) {
       setPhase("error");
       setErrorMsg(
-        `${fromToken} → ${toToken} is not yet available on Arc Testnet. ` +
-        `Only USDC ↔ EURC is currently supported. Please select a USDC or EURC pair.`
+        `${fromToken} → ${toToken} is not yet supported. ` +
+        `Please select USDC or EURC as both tokens.`
       );
       return;
     }
