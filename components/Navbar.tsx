@@ -52,7 +52,7 @@ export function Navbar() {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            gap: "16px",
+            position: "relative",
           }}
         >
           {/* ── LEFT: Logo ── */}
@@ -80,8 +80,17 @@ export function Navbar() {
             </Link>
           </motion.div>
 
-          {/* ── CENTER: Primary feature links in glass pill ── */}
-          <div className="hidden lg:flex items-center gap-1 glass-card px-4 py-2 rounded-full" style={{ flexShrink: 0 }}>
+          {/* ── CENTER: Primary feature links — absolutely centered to viewport ── */}
+          <div
+            className="hidden lg:flex items-center"
+            style={{
+              position: "absolute",
+              left: "50%",
+              transform: "translateX(-50%)",
+              pointerEvents: "auto",
+            }}
+          >
+          <div className="glass-card flex items-center gap-1 px-3 py-2 rounded-full">
             {primaryLinks.map((link) => {
               const isActive = pathname === link.href;
               return (
@@ -106,6 +115,7 @@ export function Navbar() {
                 </Link>
               );
             })}
+          </div>
           </div>
 
           {/* ── RIGHT: Faucet CTA + Secondary links + ConnectButton ── */}

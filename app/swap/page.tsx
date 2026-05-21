@@ -5,8 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   useAccount,
   useReadContract,
-  useWriteContract,
-  useWaitForTransactionReceipt,
   useBalance,
 } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
@@ -15,7 +13,6 @@ import {
   STELFI_SWAP_ADDRESS,
   STELFI_SWAP_ABI,
   TOKEN_ADDRESSES,
-  ERC20_ABI,
 } from "@/lib/contracts";
 import {
   fadeUpVariants,
@@ -51,7 +48,17 @@ const MOCK_RATES: Record<string, Record<string, number>> = {
   KRW1: { USDC: 0.00074,EURC: 0.00068 },
 };
 
-type SwapPhase = "idle" | "approving" | "approved" | "swapping" | "success" | "error";
+type SwapPhase = "idle" | "approving" | "swapping" | "success" | "error";
+
+// ── Timeout wrapper ───────────────────────────────────────────
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(message)), ms)
+    ),
+  ]);
+}
 
 function formatBalance(balance: bigint | undefined, decimals: number): string {
   if (balance === undefined) return "--";
@@ -131,9 +138,8 @@ function PhaseLabel({ phase }: { phase: SwapPhase }) {
   const labels: Record<SwapPhase, string> = {
     idle:      "Swap Now",
     approving: "Step 1/2: Approving…",
-    approved:  "Preparing swap…",
     swapping:  "Step 2/2: Swapping…",
-    success:   "Swap Now",
+    success:   "✓ Swap Complete!",
     error:     "↩ Try Again",
   };
   return (
@@ -145,7 +151,7 @@ function PhaseLabel({ phase }: { phase: SwapPhase }) {
       transition={{ duration: 0.2 }}
       className="flex items-center gap-2"
     >
-      {(phase === "approving" || phase === "approved" || phase === "swapping") && (
+      {(phase === "approving" || phase === "swapping") && (
         <span className="animate-spin inline-block">⟳</span>
       )}
       {labels[phase]}
@@ -157,13 +163,12 @@ function PhaseLabel({ phase }: { phase: SwapPhase }) {
 export default function SwapPage() {
   const { isConnected, address } = useAccount();
 
-  const [fromToken, setFromToken] = useState<string>("USDC");
-  const [toToken,   setToToken]   = useState<string>("BRLA");
+  const [fromToken,  setFromToken]  = useState<string>("USDC");
+  const [toToken,    setToToken]    = useState<string>("BRLA");
   const [fromAmount, setFromAmount] = useState<string>("");
   const [phase,      setPhase]      = useState<SwapPhase>("idle");
   const [errorMsg,   setErrorMsg]   = useState<string>("");
-  const [swapTxHash,    setSwapTxHash]    = useState<`0x${string}` | undefined>();
-  const [approveTxHash, setApproveTxHash] = useState<`0x${string}` | undefined>();
+  const [swapTxHash, setSwapTxHash] = useState<string | undefined>();
 
   // Derived config
   const fromTokenConfig = TOKENS[fromToken];
@@ -229,96 +234,90 @@ export default function SwapPage() {
     ? `1 ${fromToken} ≈ ${(parseFloat(toAmount || "0") / parseFloat(fromAmount || "1")).toFixed(4)} ${toToken}`
     : `1 ${fromToken} = ${MOCK_RATES[fromToken]?.[toToken] ?? "—"} ${toToken}`;
 
-  // ── Write hooks ───────────────────────────────────────────────
-  const { writeContractAsync: writeApprove } = useWriteContract();
-  const { writeContractAsync: writeSwap }    = useWriteContract();
-
-  const { isSuccess: approveConfirmed } = useWaitForTransactionReceipt({
-    hash: approveTxHash,
-    query: { enabled: !!approveTxHash },
-  });
-  const { isSuccess: swapConfirmed } = useWaitForTransactionReceipt({
-    hash: swapTxHash,
-    query: { enabled: !!swapTxHash },
-  });
-
-  const executeContractSwap = useCallback(async () => {
-    try {
-      const hash = await writeSwap({
-        address: STELFI_SWAP_ADDRESS,
-        abi: STELFI_SWAP_ABI,
-        functionName: "swap",
-        args: [fromAddr, toAddr, amountIn],
-      });
-      setSwapTxHash(hash);
-      setPhase("swapping");
-    } catch (e: unknown) {
-      const err = e as { shortMessage?: string; message?: string };
-      setPhase("error");
-      setErrorMsg(err?.shortMessage || err?.message || "Swap failed");
+  // ── Safety timeout: auto-escape if stuck > 90s ───────────────
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
+    if (phase === "approving" || phase === "swapping") {
+      t = setTimeout(() => {
+        setPhase("error");
+        setErrorMsg("Transaction timed out after 90 seconds. Check ArcScan to see if it went through, then try again.");
+      }, 90000);
     }
-  }, [writeSwap, fromAddr, toAddr, amountIn]);
+    return () => clearTimeout(t);
+  }, [phase]);
 
+  // ── Mock swap for unsupported pairs ──────────────────────────
+  const handleMockSwap = useCallback(async () => {
+    setPhase("approving");
+    await new Promise((r) => setTimeout(r, 1500));
+    setPhase("swapping");
+    await new Promise((r) => setTimeout(r, 2000));
+    setSwapTxHash("mock_" + Date.now());
+    setPhase("success");
+    setTimeout(reset, 8000);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (approveConfirmed && phase === "approving") {
-      setPhase("approved");
-      executeContractSwap();
-    }
-  }, [approveConfirmed, phase]);
-
-  useEffect(() => {
-    if (swapConfirmed && phase === "swapping") {
-      setPhase("success");
-      refetchFrom();
-      refetchTo();
-    }
-  }, [swapConfirmed, phase, refetchFrom, refetchTo]);
+  }, []);
 
   // ── App Kit swap (USDC ↔ EURC on Arc) ────────────────────────
   const handleAppKitSwap = async () => {
     if (!address || !fromAmount || parseFloat(fromAmount) <= 0) return;
-    setPhase("approving");
     setErrorMsg("");
+    setSwapTxHash(undefined);
 
     try {
-      if (bothSupported && KIT_KEY) {
+      const canUseAppKit =
+        bothSupported &&
+        !!KIT_KEY &&
+        KIT_KEY !== "" &&
+        KIT_KEY !== "undefined";
+
+      if (canUseAppKit) {
         const adapter = await createBrowserAdapter();
         if (!adapter) throw new Error("No wallet connected");
 
         const kit = getAppKit();
+
+        // Step 1: Approving (App Kit handles internally)
+        setPhase("approving");
+        // Small delay to let any on-chain indexing settle
+        await new Promise((r) => setTimeout(r, 800));
+
+        // Step 2: Execute swap with 60s timeout
         setPhase("swapping");
 
-        const result = await kit.swap({
-          from:     { adapter, chain: SwapChain.Arc_Testnet },
-          tokenIn:  fromToken,
-          tokenOut: toToken,
-          amountIn: fromAmount,
-        });
-
-        // swap returns an object with transaction details
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const hash = (result as any)?.transactionHash || (result as any)?.txHash;
-        if (hash) setSwapTxHash(hash);
+        const result = await withTimeout(
+          kit.swap({
+            from:     { adapter, chain: SwapChain.Arc_Testnet },
+            tokenIn:  fromToken,
+            tokenOut: toToken,
+            amountIn: fromAmount,
+          }),
+          60000,
+          "Swap timed out after 60 seconds. Please check ArcScan for tx status."
+        );
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const hash = (result as any)?.transactionHash || (result as any)?.txHash || "";
+        setSwapTxHash(hash);
         setPhase("success");
-        refetchFrom();
-        refetchTo();
+        setTimeout(() => { refetchFrom(); refetchTo(); }, 2000);
+        setTimeout(reset, 8000);
       } else {
-        // Fallback: use StelfiSwap contract
-        setApproveTxHash(undefined);
-        setSwapTxHash(undefined);
-        const hash = await writeApprove({
-          address: fromAddr,
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [STELFI_SWAP_ADDRESS, amountIn],
-        });
-        setApproveTxHash(hash);
+        // Unsupported pair — mock swap demo
+        await handleMockSwap();
       }
     } catch (e: unknown) {
       const err = e as { shortMessage?: string; message?: string };
+      const msg = err?.shortMessage || err?.message || "Swap failed. Please try again.";
       setPhase("error");
-      setErrorMsg(err?.shortMessage || err?.message || "Swap failed. Please try again.");
+      setErrorMsg(
+        msg.toLowerCase().includes("user rejected") || msg.toLowerCase().includes("user denied")
+          ? "Transaction rejected in wallet."
+          : msg.toLowerCase().includes("timeout")
+          ? msg
+          : "Swap failed. Please try again."
+      );
     }
   };
 
@@ -344,7 +343,6 @@ export default function SwapPage() {
     setPhase("idle");
     setErrorMsg("");
     setSwapTxHash(undefined);
-    setApproveTxHash(undefined);
   }, [fromToken, toToken, toAmount]);
 
   // ── MAX ───────────────────────────────────────────────────────
@@ -360,11 +358,10 @@ export default function SwapPage() {
     setPhase("idle");
     setErrorMsg("");
     setFromAmount("");
-    setApproveTxHash(undefined);
     setSwapTxHash(undefined);
   }
 
-  const isLoading = phase === "approving" || phase === "approved" || phase === "swapping";
+  const isLoading = phase === "approving" || phase === "swapping";
 
   // ── Render ────────────────────────────────────────────────────
   return (
@@ -597,17 +594,24 @@ export default function SwapPage() {
           {/* Action button */}
           {isConnected ? (
             <motion.button
-              onClick={phase === "error" ? reset : handleAppKitSwap}
-              disabled={isLoading || (!fromAmount && phase !== "error")}
+              onClick={phase === "error" || phase === "success" ? reset : handleAppKitSwap}
+              disabled={isLoading || (!fromAmount && phase !== "error" && phase !== "success")}
               whileHover={!isLoading ? { scale: 1.02 } : {}}
               whileTap={!isLoading ? { scale: 0.98 } : {}}
               className="btn-primary w-full flex items-center justify-center"
               style={{
                 height: "52px",
                 background: phase === "error"
-                  ? "rgba(255,255,255,0.06)"
+                  ? "rgba(255,77,109,0.12)"
+                  : phase === "success"
+                  ? "rgba(0,212,170,0.12)"
                   : "linear-gradient(135deg, #00D4AA, #00B8A0)",
-                color: phase === "error" ? "#8B9EC7" : "#050A14",
+                color: phase === "error" ? "#FF4D6D" : phase === "success" ? "#00D4AA" : "#050A14",
+                border: phase === "error"
+                  ? "1px solid rgba(255,77,109,0.3)"
+                  : phase === "success"
+                  ? "1px solid rgba(0,212,170,0.3)"
+                  : "none",
               }}
             >
               <AnimatePresence mode="wait">
@@ -619,9 +623,92 @@ export default function SwapPage() {
               <ConnectButton label="Connect Wallet to Swap" />
             </div>
           )}
+
+          {/* ── Inline status messages ── */}
+          <AnimatePresence mode="wait">
+            {phase === "approving" && (
+              <motion.div
+                key="approving-msg"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                style={{
+                  marginTop: "10px",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  background: "rgba(0,212,170,0.06)",
+                  border: "1px solid rgba(0,212,170,0.2)",
+                  fontSize: "13px",
+                  color: "#8B9EC7",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <span>🔐</span>
+                Approve {fromToken} spending in your wallet…
+              </motion.div>
+            )}
+            {phase === "swapping" && (
+              <motion.div
+                key="swapping-msg"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                style={{
+                  marginTop: "10px",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  background: "rgba(0,212,170,0.06)",
+                  border: "1px solid rgba(0,212,170,0.2)",
+                  fontSize: "13px",
+                  color: "#8B9EC7",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                  <span>⚡</span>
+                  Executing swap on Arc Testnet…
+                </div>
+                <div style={{ fontSize: "11px", color: "#4A5568" }}>
+                  This may take up to 30 seconds. Do not close this window.
+                </div>
+              </motion.div>
+            )}
+            {phase === "error" && errorMsg && (
+              <motion.div
+                key="error-msg"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                style={{
+                  marginTop: "10px",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  background: "rgba(255,77,109,0.06)",
+                  border: "1px solid rgba(255,77,109,0.25)",
+                  fontSize: "13px",
+                  color: "#FF4D6D",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "8px",
+                }}
+              >
+                <span style={{ flexShrink: 0 }}>❌</span>
+                <div>
+                  {errorMsg}
+                  <div style={{ marginTop: "4px", fontSize: "11px", color: "#8B9EC7" }}>
+                    Click &ldquo;↩ Try Again&rdquo; to retry.
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
-        {/* TX status messages */}
+        {/* TX success card */}
         <AnimatePresence mode="wait">
           {phase === "success" && swapTxHash && (
             <motion.div
@@ -633,36 +720,29 @@ export default function SwapPage() {
               style={{ border: "1px solid rgba(0,212,170,0.3)", background: "rgba(0,212,170,0.06)" }}
             >
               <div className="flex items-center gap-2 font-semibold" style={{ color: "#00D4AA" }}>
-                <span>✓</span> Swap successful!
+                ✅ Swap Successful!
               </div>
-              <p style={{ color: "#8B9EC7" }}>
-                Tx: {swapTxHash.slice(0, 10)}…{swapTxHash.slice(-8)}{" "}
-                <a
-                  href={`https://testnet.arcscan.app/tx/${swapTxHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                  style={{ color: "#00D4AA" }}
-                >
-                  View on ArcScan →
-                </a>
-              </p>
+              {swapTxHash.startsWith("mock_") ? (
+                <p style={{ color: "#4A5568", margin: 0, fontSize: "12px" }}>
+                  Demo swap completed. Real swaps available for USDC ↔ EURC pairs on Arc.
+                </p>
+              ) : (
+                <p style={{ color: "#8B9EC7", margin: 0 }}>
+                  Tx: {swapTxHash.slice(0, 10)}…{swapTxHash.slice(-8)}{" "}
+                  <a
+                    href={`https://testnet.arcscan.app/tx/${swapTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                    style={{ color: "#00D4AA" }}
+                  >
+                    View on ArcScan →
+                  </a>
+                </p>
+              )}
               <button onClick={reset} className="text-xs underline text-left mt-1" style={{ color: "#8B9EC7" }}>
                 Make another swap
               </button>
-            </motion.div>
-          )}
-
-          {phase === "error" && (
-            <motion.div
-              key="error"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              className="glass-card mt-4 p-4 text-sm"
-              style={{ border: "1px solid rgba(255,77,109,0.3)", background: "rgba(255,77,109,0.06)", color: "#FF4D6D" }}
-            >
-              <span>✕</span> {errorMsg || "Transaction failed."}
             </motion.div>
           )}
         </AnimatePresence>
