@@ -4,7 +4,16 @@ import { AppKit, BridgeChain, SwapChain } from "@circle-fin/app-kit";
 import { createAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
 
 // ── Kit key ───────────────────────────────────────────────────
-export const KIT_KEY = process.env.NEXT_PUBLIC_KIT_KEY || "";
+export const KIT_KEY = process.env.NEXT_PUBLIC_KIT_KEY ?? "";
+
+if (process.env.NODE_ENV === "development") {
+  console.log(
+    "[Stelfi] App Kit Key status:",
+    KIT_KEY
+      ? `Loaded (${KIT_KEY.length} chars)`
+      : "NOT SET — get a free key at console.circle.com → Keys → Kit Keys"
+  );
+}
 
 // ── Re-export chain enums ─────────────────────────────────────
 export { BridgeChain, SwapChain };

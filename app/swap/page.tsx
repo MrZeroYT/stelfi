@@ -41,6 +41,10 @@ const FROM_TOKENS = ["USDC", "EURC"];
 // EURC first — it's the only live pair on Arc Testnet right now
 const TO_TOKENS   = ["EURC", "USDC", "BRLA", "MXNB", "PHPC", "JPYC", "KRW1"];
 
+// Tokens supported by Arc App Kit (USDC ↔ EURC is the live pair on Arc Testnet).
+// This is the single source of truth — do NOT gate on KIT_KEY or .supported flags.
+const SUPPORTED_APP_KIT_TOKENS = ["USDC", "EURC"] as const;
+
 const MOCK_RATES: Record<string, Record<string, number>> = {
   USDC: { EURC: 0.92,  BRLA: 5.87,  MXNB: 17.2,  PHPC: 58.4,  JPYC: 149.3,  KRW1: 1342.5, USDC: 1 },
   EURC: { USDC: 1.087, BRLA: 6.38,  MXNB: 18.7,  PHPC: 63.5,  JPYC: 162.3,  KRW1: 1459.8, EURC: 1 },
@@ -189,7 +193,11 @@ export default function SwapPage() {
   const fromDecimals = fromTokenConfig.decimals;
   const amountIn = fromAmount ? parseUnits(fromAmount, fromDecimals) : BigInt(0);
 
-  const bothSupported = fromTokenConfig.supported && toTokenConfig.supported;
+  // Derive directly from the whitelist — never from the .supported flag or KIT_KEY.
+  const bothSupported =
+    (SUPPORTED_APP_KIT_TOKENS as readonly string[]).includes(fromToken) &&
+    (SUPPORTED_APP_KIT_TOKENS as readonly string[]).includes(toToken) &&
+    fromToken !== toToken;
 
   // ── Balances ─────────────────────────────────────────────────
   const { data: fromBalanceData, isLoading: fromBalLoading, refetch: refetchFrom } = useBalance({
@@ -373,6 +381,14 @@ export default function SwapPage() {
       // After ~6s, switch to swapping phase (approval done, swap tx being sent)
       const swapTimer = setTimeout(() => setPhase("swapping"), 6000);
 
+      // Build config — include kitKey only when present; App Kit can attempt
+      // without it on Arc Testnet but will error clearly if it requires one.
+      const swapCfg = KIT_KEY ? { kitKey: KIT_KEY } : undefined;
+
+      if (process.env.NODE_ENV === "development") {
+        console.log("[Stelfi] kit.swap() called", { fromToken, toToken, fromAmount, hasKey: !!KIT_KEY });
+      }
+
       let result: unknown;
       try {
         result = await withTimeout(
@@ -381,7 +397,7 @@ export default function SwapPage() {
             tokenIn:  fromToken,
             tokenOut: toToken,
             amountIn: fromAmount,
-            config:   { kitKey: KIT_KEY },   // ← required for App Kit routing
+            ...(swapCfg ? { config: swapCfg } : {}),
           }),
           120000,
           "Swap timed out after 2 minutes. Check ArcScan at testnet.arcscan.app to see if your transaction went through."
@@ -420,10 +436,18 @@ export default function SwapPage() {
         setErrorMsg(msg);
       } else if (msgLow.includes("insufficient") || msgLow.includes("balance")) {
         setErrorMsg("Insufficient balance. Make sure you have enough USDC/EURC plus gas fees.");
-      } else if (msgLow.includes("kit key") || msgLow.includes("unauthorized") || msgLow.includes("api key")) {
-        setErrorMsg("Kit key error — make sure NEXT_PUBLIC_KIT_KEY is set in your environment and redeploy.");
+      } else if (
+        msgLow.includes("kit key") || msgLow.includes("kitkey") ||
+        msgLow.includes("api key") || msgLow.includes("unauthorized") ||
+        msgLow.includes("forbidden")
+      ) {
+        setErrorMsg(
+          "A Circle Kit Key is required. Get your free key at console.circle.com → Keys → Kit Keys, " +
+          "then add NEXT_PUBLIC_KIT_KEY to your Vercel environment variables and redeploy."
+        );
       } else {
-        // Show the real App Kit error so it's diagnosable
+        // Show the real App Kit error — never mask it with a generic "not available" message
+        console.error("[Stelfi] Swap error:", err);
         setErrorMsg(msg || "Swap failed. Please try again.");
       }
       setPhase("error");
@@ -645,24 +669,42 @@ export default function SwapPage() {
             </div>
           </div>
 
-          {/* "Coming soon" banner for unsupported pairs */}
+          {/* Pair status indicator */}
           <AnimatePresence>
-            {!bothSupported && (
+            {bothSupported ? (
               <motion.div
-                key="coming-soon"
+                key="live"
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
-                className="glass-card"
                 style={{
-                  padding: "10px 14px",
-                  border: "1px solid rgba(255,181,71,0.3)",
-                  background: "rgba(255,181,71,0.05)",
+                  display: "flex", alignItems: "center", gap: "8px",
+                  padding: "9px 14px", borderRadius: "10px",
+                  background: "rgba(0,212,170,0.06)",
+                  border: "1px solid rgba(0,212,170,0.2)",
                   marginTop: "-4px",
                 }}
               >
-                <p style={{ color: "#FFB547", fontSize: 13, margin: 0 }}>
-                  ⚡ {fromToken}/{toToken} swap via Arc App Kit coming soon. Rate shown is indicative.
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" style={{ flexShrink: 0 }} />
+                <span style={{ color: "#00D4AA", fontSize: 12, fontWeight: 600 }}>
+                  Live swap · Arc App Kit (LiFi aggregator)
+                </span>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="indicative"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                style={{
+                  padding: "9px 14px", borderRadius: "10px",
+                  background: "rgba(255,181,71,0.05)",
+                  border: "1px solid rgba(255,181,71,0.25)",
+                  marginTop: "-4px",
+                }}
+              >
+                <p style={{ color: "#FFB547", fontSize: 12, margin: 0 }}>
+                  ⚡ Switch to USDC ↔ EURC for live App Kit swaps. Other pairs are indicative only.
                 </p>
               </motion.div>
             )}
