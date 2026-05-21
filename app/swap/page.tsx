@@ -18,7 +18,6 @@ import {
   ERC20_ABI,
 } from "@/lib/contracts";
 import {
-  pageVariants,
   fadeUpVariants,
   scaleInVariants,
 } from "@/lib/animations";
@@ -369,14 +368,7 @@ export default function SwapPage() {
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="min-h-screen pt-28 pb-16 px-4"
-      style={{ position: "relative", zIndex: 1 }}
-    >
+    <div className="min-h-screen pt-8 pb-16 px-4" style={{ position: "relative", zIndex: 1 }}>
       <div style={{ maxWidth: "440px", width: "100%", margin: "0 auto" }}>
         {/* Header */}
         <motion.div variants={fadeUpVariants} className="mb-8">
@@ -675,7 +667,7 @@ export default function SwapPage() {
           )}
         </AnimatePresence>
       </div>
-    </motion.div>
+    </div>
   );
 }
 

@@ -1,50 +1,45 @@
 import { Variants } from "framer-motion";
 
+// pageVariants kept for import compatibility — page-level animation
+// is now handled by PageTransition (opacity only). These variants are
+// no longer applied to page root wrappers.
 export const pageVariants: Variants = {
-  initial: { opacity: 0, y: 10 },
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.25, ease: "easeOut" },
-  },
-  exit: {
-    opacity: 0,
-    y: -5,
-    transition: { duration: 0.15, ease: "easeIn" },
-  },
+  initial: { opacity: 1 },
+  animate: { opacity: 1 },
+  exit:    { opacity: 0, transition: { duration: 0.1, ease: "easeIn" } },
 };
 
 export const fadeUpVariants: Variants = {
-  initial: { opacity: 0, y: 40 },
+  initial: { opacity: 0, y: 16 },
   animate: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.6, ease: [0.4, 0, 0.2, 1] },
+    transition: { duration: 0.3, ease: [0.4, 0, 0.2, 1] },
   },
 };
 
 export const staggerContainer: Variants = {
   initial: {},
   animate: {
-    transition: { staggerChildren: 0.06, delayChildren: 0.05 },
+    transition: { staggerChildren: 0.05, delayChildren: 0 },
   },
 };
 
 export const staggerItem: Variants = {
-  initial: { opacity: 0, y: 20 },
+  initial: { opacity: 0, y: 16 },
   animate: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.3, ease: "easeOut" },
+    transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
   },
 };
 
 export const scaleInVariants: Variants = {
-  initial: { opacity: 0, scale: 0.94 },
+  initial: { opacity: 0, scale: 0.97 },
   animate: {
     opacity: 1,
     scale: 1,
-    transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] },
+    transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
   },
 };
 

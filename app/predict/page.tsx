@@ -18,7 +18,6 @@ import {
   ERC20_ABI,
 } from "@/lib/contracts";
 import {
-  pageVariants,
   fadeUpVariants,
   staggerContainer,
   staggerItem,
@@ -187,14 +186,7 @@ export default function PredictPage() {
 
   // ── Render ─────────────────────────────────────────────────
   return (
-    <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="min-h-screen pt-28 pb-16 px-4"
-      style={{ position: "relative", zIndex: 1 }}
-    >
+    <div className="min-h-screen pt-8 pb-16 px-4" style={{ position: "relative", zIndex: 1 }}>
       <div className="max-w-4xl mx-auto">
 
         {/* Header */}
@@ -307,7 +299,7 @@ export default function PredictPage() {
         {/* My Bets */}
         <MyBetsSection isConnected={isConnected} address={address} markets={liveMarkets} />
       </div>
-    </motion.div>
+    </div>
   );
 }
 

@@ -6,7 +6,6 @@ import { useAccount, useBalance } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatUnits } from "viem";
 import {
-  pageVariants,
   fadeUpVariants,
   scaleInVariants,
   staggerContainer,
@@ -123,14 +122,7 @@ export default function BalancePage() {
   const spendLoading   = spendStatus === "loading";
 
   return (
-    <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="min-h-screen pt-28 pb-20 px-4"
-      style={{ position: "relative", zIndex: 1 }}
-    >
+    <div className="min-h-screen pt-8 pb-20 px-4" style={{ position: "relative", zIndex: 1 }}>
       <div className="max-w-4xl mx-auto">
 
         {/* ── Header ── */}
@@ -407,7 +399,7 @@ export default function BalancePage() {
         </motion.div>
 
       </div>
-    </motion.div>
+    </div>
   );
 }
 

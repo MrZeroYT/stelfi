@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
-  pageVariants,
   fadeUpVariants,
   scaleInVariants,
   staggerContainer,
@@ -69,14 +68,7 @@ export default function BridgePage() {
   const isLoading = bridgeStatus === "loading";
 
   return (
-    <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="min-h-screen pt-28 pb-20 px-4"
-      style={{ position: "relative", zIndex: 1 }}
-    >
+    <div className="min-h-screen pt-8 pb-20 px-4" style={{ position: "relative", zIndex: 1 }}>
       <div className="max-w-2xl mx-auto">
 
         {/* ── Header ── */}
@@ -336,7 +328,7 @@ export default function BridgePage() {
         </motion.div>
 
       </div>
-    </motion.div>
+    </div>
   );
 }
 

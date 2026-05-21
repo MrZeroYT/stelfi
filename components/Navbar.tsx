@@ -25,6 +25,7 @@ export function Navbar() {
   const pathname = usePathname();
   const [scrolled,    setScrolled]    = useState(false);
   const [mobileOpen,  setMobileOpen]  = useState(false);
+  const [faucetHover, setFaucetHover] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -107,8 +108,95 @@ export function Navbar() {
             })}
           </div>
 
-          {/* ── RIGHT: Secondary links + ConnectButton ── */}
-          <div className="hidden lg:flex items-center gap-4" style={{ flexShrink: 0 }}>
+          {/* ── RIGHT: Faucet CTA + Secondary links + ConnectButton ── */}
+          <div className="hidden lg:flex items-center gap-3" style={{ flexShrink: 0 }}>
+
+            {/* Faucet CTA button with tooltip */}
+            <div style={{ position: "relative" }}>
+              <motion.a
+                href="https://faucet.circle.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onMouseEnter={() => setFaucetHover(true)}
+                onMouseLeave={() => setFaucetHover(false)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "7px 14px",
+                  borderRadius: "20px",
+                  background: faucetHover
+                    ? "linear-gradient(135deg, rgba(0,212,170,0.25), rgba(0,212,170,0.15))"
+                    : "linear-gradient(135deg, rgba(0,212,170,0.15), rgba(0,212,170,0.08))",
+                  border: faucetHover
+                    ? "1px solid rgba(0,212,170,0.7)"
+                    : "1px solid rgba(0,212,170,0.4)",
+                  color: "#00D4AA",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  textDecoration: "none",
+                  whiteSpace: "nowrap",
+                  boxShadow: faucetHover
+                    ? "0 0 20px rgba(0,212,170,0.3)"
+                    : "0 0 12px rgba(0,212,170,0.15)",
+                  transition: "background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease",
+                  cursor: "pointer",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block"
+                  style={{ flexShrink: 0 }}
+                />
+                Get Testnet USDC
+              </motion.a>
+
+              {/* Tooltip */}
+              <AnimatePresence>
+                {faucetHover && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    transition={{ duration: 0.15 }}
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 10px)",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      background: "rgba(5,10,20,0.95)",
+                      border: "1px solid rgba(0,212,170,0.25)",
+                      borderRadius: "8px",
+                      padding: "6px 12px",
+                      fontSize: "12px",
+                      color: "#8B9EC7",
+                      whiteSpace: "nowrap",
+                      pointerEvents: "none",
+                      zIndex: 100,
+                    }}
+                  >
+                    Free testnet USDC · No wallet needed
+                    {/* Arrow */}
+                    <div style={{
+                      position: "absolute",
+                      top: "-5px",
+                      left: "50%",
+                      transform: "translateX(-50%) rotate(45deg)",
+                      width: "8px",
+                      height: "8px",
+                      background: "rgba(5,10,20,0.95)",
+                      border: "1px solid rgba(0,212,170,0.25)",
+                      borderBottom: "none",
+                      borderRight: "none",
+                    }} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Secondary links */}
             {secondaryLinks.map((link) => {
               const isActive = pathname === link.href;
               return (
@@ -124,6 +212,7 @@ export function Navbar() {
                 </Link>
               );
             })}
+
             <ConnectButton showBalance={false} chainStatus="icon" accountStatus="avatar" />
           </div>
 
@@ -162,12 +251,47 @@ export function Navbar() {
             transition={{ duration: 0.3 }}
             className="fixed top-16 left-4 right-4 z-40 glass-card rounded-2xl p-4"
           >
+            {/* Faucet button in mobile menu */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0 }}
+            >
+              <a
+                href="https://faucet.circle.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMobileOpen(false)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "12px 16px",
+                  borderRadius: "12px",
+                  background: "rgba(0,212,170,0.1)",
+                  border: "1px solid rgba(0,212,170,0.3)",
+                  color: "#00D4AA",
+                  textDecoration: "none",
+                  fontWeight: 700,
+                  fontSize: "14px",
+                  marginBottom: "4px",
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" style={{ flexShrink: 0 }} />
+                Get Testnet USDC
+                <span style={{ marginLeft: "auto", fontSize: "12px", opacity: 0.6 }}>
+                  ↗ faucet.circle.com
+                </span>
+              </a>
+            </motion.div>
+
+            {/* Nav links */}
             {allLinks.map((link, i) => (
               <motion.div
                 key={link.href}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.05 }}
+                transition={{ delay: (i + 1) * 0.05 }}
               >
                 <Link
                   href={link.href}
@@ -182,6 +306,7 @@ export function Navbar() {
                 </Link>
               </motion.div>
             ))}
+
             <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
               <ConnectButton />
             </div>

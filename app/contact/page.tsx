@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
-import { pageVariants, fadeUpVariants, scaleInVariants } from "@/lib/animations";
+import { fadeUpVariants, scaleInVariants } from "@/lib/animations";
 
 const contactSchema = z.object({
   firstName: z.string().min(1, "First name is required").max(50),
@@ -74,8 +74,7 @@ export default function ContactPage() {
   };
 
   return (
-    <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit"
-      className="min-h-screen pt-24 pb-20 px-4" style={{ position: "relative", zIndex: 1 }}>
+    <div className="min-h-screen pt-8 pb-20 px-4" style={{ position: "relative", zIndex: 1 }}>
 
       {/* Header */}
       <motion.div variants={fadeUpVariants} className="text-center max-w-2xl mx-auto mb-12">
@@ -163,6 +162,6 @@ export default function ContactPage() {
           )}
         </AnimatePresence>
       </motion.div>
-    </motion.div>
+    </div>
   );
 }

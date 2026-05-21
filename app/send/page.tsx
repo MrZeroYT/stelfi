@@ -6,7 +6,6 @@ import { useAccount, useBalance } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatUnits } from "viem";
 import {
-  pageVariants,
   fadeUpVariants,
   scaleInVariants,
 } from "@/lib/animations";
@@ -99,14 +98,7 @@ export default function SendPage() {
   const truncRecip  = recipient ? `${recipient.slice(0, 8)}…${recipient.slice(-6)}` : "";
 
   return (
-    <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="min-h-screen pt-28 pb-20 px-4"
-      style={{ position: "relative", zIndex: 1 }}
-    >
+    <div className="min-h-screen pt-8 pb-20 px-4" style={{ position: "relative", zIndex: 1 }}>
       <div style={{ maxWidth: "480px", width: "100%", margin: "0 auto" }}>
 
         {/* ── Header ── */}
@@ -350,7 +342,7 @@ export default function SendPage() {
         </motion.div>
 
       </div>
-    </motion.div>
+    </div>
   );
 }
 

@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import {
-  pageVariants,
   fadeUpVariants,
   staggerContainer,
   staggerItem,
@@ -59,14 +58,7 @@ const TECH_STACK = [
 
 export default function AboutPage() {
   return (
-    <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="min-h-screen pt-24 pb-20 px-4"
-      style={{ position: "relative", zIndex: 1 }}
-    >
+    <div className="min-h-screen pt-8 pb-20 px-4" style={{ position: "relative", zIndex: 1 }}>
       <div className="max-w-6xl mx-auto">
 
         {/* ── SECTION 1: HERO ── */}
@@ -403,6 +395,6 @@ export default function AboutPage() {
         </motion.div>
 
       </div>
-    </motion.div>
+    </div>
   );
 }

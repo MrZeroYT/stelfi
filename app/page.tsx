@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import {
-  pageVariants,
   fadeUpVariants,
   staggerContainer,
   staggerItem,
@@ -121,11 +120,10 @@ export default function HomePage() {
   }, []);
 
   return (
-    <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit"
-      className="relative flex flex-col items-center px-6 pb-16 min-h-screen" style={{ zIndex: 1 }}>
+    <div className="relative flex flex-col items-center px-6 pb-16 min-h-screen" style={{ zIndex: 1 }}>
 
       {/* ── Hero ── */}
-      <div className="flex flex-col items-center text-center pt-36 pb-16 w-full max-w-4xl">
+      <div className="flex flex-col items-center text-center pt-16 pb-16 w-full max-w-4xl">
         <motion.span variants={fadeUpVariants} className="mb-8 px-4 py-1.5 rounded-full text-xs font-semibold border inline-flex items-center gap-2"
           style={{ color: "#00D4AA", borderColor: "rgba(0,212,170,0.3)", backgroundColor: "rgba(0,212,170,0.08)" }}>
           <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block pulse-glow" />
@@ -332,6 +330,6 @@ export default function HomePage() {
         </div>
         <p className="text-xs" style={{ color: "#4A5568" }}>Built on Arc Network · Powered by USDC · © 2026 Stelfi</p>
       </motion.footer>
-    </motion.div>
+    </div>
   );
 }
