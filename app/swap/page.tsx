@@ -6,6 +6,8 @@ import {
   useAccount,
   useReadContract,
   useBalance,
+  useChainId,
+  useSwitchChain,
 } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { parseUnits, formatUnits } from "viem";
@@ -164,6 +166,9 @@ function PhaseLabel({ phase }: { phase: SwapPhase }) {
 // ── Main component ────────────────────────────────────────────
 export default function SwapPage() {
   const { isConnected, address } = useAccount();
+  const chainId                  = useChainId();
+  const { switchChainAsync }     = useSwitchChain();
+  const ARC_CHAIN_ID             = 5042002;
 
   const [fromToken,     setFromToken]     = useState<string>("USDC");
   const [toToken,       setToToken]       = useState<string>("EURC");
@@ -326,8 +331,6 @@ export default function SwapPage() {
     setErrorMsg("");
     setSwapTxHash(undefined);
 
-    // Gate only on whether the pair is supported — not on KIT_KEY presence.
-    // KIT_KEY is passed per-call; App Kit will surface its own error if missing.
     if (!bothSupported) {
       setPhase("error");
       setErrorMsg(
@@ -335,6 +338,23 @@ export default function SwapPage() {
         `Please select USDC or EURC as both tokens.`
       );
       return;
+    }
+
+    // Arc Testnet check — MetaMask must be on chain 5042002.
+    // Wrong chain = App Kit builds an adapter for the wrong network and fails
+    // internally before MetaMask ever shows a popup.
+    if (chainId !== ARC_CHAIN_ID) {
+      try {
+        setPhase("approving");
+        await switchChainAsync({ chainId: ARC_CHAIN_ID });
+      } catch {
+        setPhase("error");
+        setErrorMsg(
+          "Please switch MetaMask to Arc Testnet (chain 5042002) and try again. " +
+          "Add it at testnet.arcscan.app if it's not in your wallet yet."
+        );
+        return;
+      }
     }
 
     try {
@@ -384,22 +404,26 @@ export default function SwapPage() {
     } catch (e: unknown) {
       const err = e as { code?: number; shortMessage?: string; message?: string };
       const msg = err?.shortMessage || err?.message || "";
+      const msgLow = msg.toLowerCase();
 
+      // Only treat as user-rejection when the wallet explicitly rejected (EIP-1193 code 4001)
+      // or the message is the standard rejection phrase. Do NOT match broad words like
+      // "cancelled" — App Kit throws those internally for route failures.
       if (
         err?.code === 4001 ||
-        msg.toLowerCase().includes("user rejected") ||
-        msg.toLowerCase().includes("user denied") ||
-        msg.toLowerCase().includes("cancelled")
+        msgLow === "user rejected the request." ||
+        msgLow.includes("user rejected the request") ||
+        msgLow.includes("user denied transaction")
       ) {
         setErrorMsg("Transaction rejected — you cancelled the wallet request. Click Try Again to retry.");
-      } else if (msg.toLowerCase().includes("timed out")) {
+      } else if (msgLow.includes("timed out")) {
         setErrorMsg(msg);
-      } else if (
-        msg.toLowerCase().includes("insufficient") ||
-        msg.toLowerCase().includes("balance")
-      ) {
+      } else if (msgLow.includes("insufficient") || msgLow.includes("balance")) {
         setErrorMsg("Insufficient balance. Make sure you have enough USDC/EURC plus gas fees.");
+      } else if (msgLow.includes("kit key") || msgLow.includes("unauthorized") || msgLow.includes("api key")) {
+        setErrorMsg("Kit key error — make sure NEXT_PUBLIC_KIT_KEY is set in your environment and redeploy.");
       } else {
+        // Show the real App Kit error so it's diagnosable
         setErrorMsg(msg || "Swap failed. Please try again.");
       }
       setPhase("error");
