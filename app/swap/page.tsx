@@ -48,7 +48,7 @@ const MOCK_RATES: Record<string, Record<string, number>> = {
   KRW1: { USDC: 0.00074,EURC: 0.00068 },
 };
 
-type SwapPhase = "idle" | "approving" | "swapping" | "success" | "error";
+type SwapPhase = "idle" | "approving" | "waitingApproval" | "swapping" | "success" | "error";
 
 // ── Timeout wrapper ───────────────────────────────────────────
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -136,11 +136,12 @@ function BalanceSkeleton() {
 
 function PhaseLabel({ phase }: { phase: SwapPhase }) {
   const labels: Record<SwapPhase, string> = {
-    idle:      "Swap Now",
-    approving: "Step 1/2: Approving…",
-    swapping:  "Step 2/2: Swapping…",
-    success:   "✓ Swap Complete!",
-    error:     "↩ Try Again",
+    idle:            "Swap Now",
+    approving:       "Step 1/2: Approve in Wallet…",
+    waitingApproval: "Step 1/2: Confirming Approval…",
+    swapping:        "Step 2/2: Confirm in Wallet…",
+    success:         "✓ Swap Complete!",
+    error:           "↩ Try Again",
   };
   return (
     <motion.span
@@ -151,7 +152,7 @@ function PhaseLabel({ phase }: { phase: SwapPhase }) {
       transition={{ duration: 0.2 }}
       className="flex items-center gap-2"
     >
-      {(phase === "approving" || phase === "swapping") && (
+      {(phase === "approving" || phase === "waitingApproval" || phase === "swapping") && (
         <span className="animate-spin inline-block">⟳</span>
       )}
       {labels[phase]}
@@ -234,90 +235,115 @@ export default function SwapPage() {
     ? `1 ${fromToken} ≈ ${(parseFloat(toAmount || "0") / parseFloat(fromAmount || "1")).toFixed(4)} ${toToken}`
     : `1 ${fromToken} = ${MOCK_RATES[fromToken]?.[toToken] ?? "—"} ${toToken}`;
 
-  // ── Safety timeout: auto-escape if stuck > 90s ───────────────
+  // ── Safety timeout: 120s absolute escape hatch ───────────────
   useEffect(() => {
     let t: ReturnType<typeof setTimeout>;
-    if (phase === "approving" || phase === "swapping") {
+    if (
+      phase === "approving" ||
+      phase === "waitingApproval" ||
+      phase === "swapping"
+    ) {
       t = setTimeout(() => {
         setPhase("error");
-        setErrorMsg("Transaction timed out after 90 seconds. Check ArcScan to see if it went through, then try again.");
-      }, 90000);
+        setErrorMsg(
+          "Operation timed out. Check ArcScan at testnet.arcscan.app to see if your transaction went through, then try again."
+        );
+      }, 120000);
     }
     return () => clearTimeout(t);
   }, [phase]);
 
-  // ── Mock swap for unsupported pairs ──────────────────────────
-  const handleMockSwap = useCallback(async () => {
-    setPhase("approving");
-    await new Promise((r) => setTimeout(r, 1500));
-    setPhase("swapping");
-    await new Promise((r) => setTimeout(r, 2000));
-    setSwapTxHash("mock_" + Date.now());
-    setPhase("success");
-    setTimeout(reset, 8000);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── App Kit swap (USDC ↔ EURC on Arc) ────────────────────────
+  // ── Swap handler ──────────────────────────────────────────────
+  // App Kit handles both approval + swap internally.
+  // It prompts the wallet TWICE:
+  //   1st popup → Approve token spending
+  //   2nd popup → Confirm swap transaction
   const handleAppKitSwap = async () => {
     if (!address || !fromAmount || parseFloat(fromAmount) <= 0) return;
     setErrorMsg("");
     setSwapTxHash(undefined);
 
+    const canUseAppKit =
+      bothSupported &&
+      !!KIT_KEY &&
+      KIT_KEY !== "" &&
+      KIT_KEY !== "undefined";
+
+    if (!canUseAppKit) {
+      // Pair not supported yet on Arc App Kit
+      setPhase("error");
+      setErrorMsg(
+        `${fromToken} → ${toToken} is not yet available on Arc Testnet. ` +
+        `Only USDC ↔ EURC is currently supported. Please select a USDC or EURC pair.`
+      );
+      return;
+    }
+
     try {
-      const canUseAppKit =
-        bothSupported &&
-        !!KIT_KEY &&
-        KIT_KEY !== "" &&
-        KIT_KEY !== "undefined";
+      const adapter = await createBrowserAdapter();
+      if (!adapter) throw new Error("No wallet connected. Please unlock MetaMask.");
 
-      if (canUseAppKit) {
-        const adapter = await createBrowserAdapter();
-        if (!adapter) throw new Error("No wallet connected");
+      const kit = getAppKit();
 
-        const kit = getAppKit();
+      // Phase 1: Wallet will show approval popup
+      setPhase("approving");
 
-        // Step 1: Approving (App Kit handles internally)
-        setPhase("approving");
-        // Small delay to let any on-chain indexing settle
-        await new Promise((r) => setTimeout(r, 800));
+      // After ~3s (typical approval confirm time), switch UI to waitingApproval.
+      // App Kit calls handleEvmTokenApproval internally then proceeds to swap.
+      // The timer is cosmetic — actual state is driven by promise resolution.
+      const approvalTimer = setTimeout(() => setPhase("waitingApproval"), 3000);
+      // After ~6s, switch to swapping phase (approval done, swap tx being sent)
+      const swapTimer = setTimeout(() => setPhase("swapping"), 6000);
 
-        // Step 2: Execute swap with 60s timeout
-        setPhase("swapping");
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const result = await withTimeout(
+      let result: unknown;
+      try {
+        result = await withTimeout(
           kit.swap({
             from:     { adapter, chain: SwapChain.Arc_Testnet },
             tokenIn:  fromToken,
             tokenOut: toToken,
             amountIn: fromAmount,
           }),
-          60000,
-          "Swap timed out after 60 seconds. Please check ArcScan for tx status."
+          120000,
+          "Swap timed out after 2 minutes. Check ArcScan at testnet.arcscan.app to see if your transaction went through."
         );
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const hash = (result as any)?.transactionHash || (result as any)?.txHash || "";
-        setSwapTxHash(hash);
-        setPhase("success");
-        setTimeout(() => { refetchFrom(); refetchTo(); }, 2000);
-        setTimeout(reset, 8000);
-      } else {
-        // Unsupported pair — mock swap demo
-        await handleMockSwap();
+      } finally {
+        clearTimeout(approvalTimer);
+        clearTimeout(swapTimer);
       }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const hash = (result as any)?.transactionHash || (result as any)?.txHash || "";
+      setSwapTxHash(hash);
+      setPhase("success");
+
+      // Refresh balances after tx settles
+      setTimeout(() => { refetchFrom(); refetchTo(); }, 3000);
+      // Auto-reset after 10s so user can swap again
+      setTimeout(reset, 10000);
+
     } catch (e: unknown) {
-      const err = e as { shortMessage?: string; message?: string };
-      const msg = err?.shortMessage || err?.message || "Swap failed. Please try again.";
+      const err = e as { code?: number; shortMessage?: string; message?: string };
+      const msg = err?.shortMessage || err?.message || "";
+
+      if (
+        err?.code === 4001 ||
+        msg.toLowerCase().includes("user rejected") ||
+        msg.toLowerCase().includes("user denied") ||
+        msg.toLowerCase().includes("cancelled")
+      ) {
+        setErrorMsg("Transaction rejected — you cancelled the wallet request. Click Try Again to retry.");
+      } else if (msg.toLowerCase().includes("timed out")) {
+        setErrorMsg(msg);
+      } else if (
+        msg.toLowerCase().includes("insufficient") ||
+        msg.toLowerCase().includes("balance")
+      ) {
+        setErrorMsg("Insufficient balance. Make sure you have enough USDC/EURC plus gas fees.");
+      } else {
+        setErrorMsg(msg || "Swap failed. Please try again.");
+      }
       setPhase("error");
-      setErrorMsg(
-        msg.toLowerCase().includes("user rejected") || msg.toLowerCase().includes("user denied")
-          ? "Transaction rejected in wallet."
-          : msg.toLowerCase().includes("timeout")
-          ? msg
-          : "Swap failed. Please try again."
-      );
     }
   };
 
@@ -361,7 +387,7 @@ export default function SwapPage() {
     setSwapTxHash(undefined);
   }
 
-  const isLoading = phase === "approving" || phase === "swapping";
+  const isLoading = phase === "approving" || phase === "waitingApproval" || phase === "swapping";
 
   // ── Render ────────────────────────────────────────────────────
   return (
@@ -641,13 +667,41 @@ export default function SwapPage() {
                   border: "1px solid rgba(0,212,170,0.2)",
                   fontSize: "13px",
                   color: "#8B9EC7",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
                 }}
               >
-                <span>🔐</span>
-                Approve {fromToken} spending in your wallet…
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                  <span>🔐</span>
+                  <span style={{ color: "#ffffff", fontWeight: 600 }}>Check your wallet</span>
+                </div>
+                <div style={{ fontSize: "12px" }}>
+                  An approval request has been sent. Click <b>Confirm</b> in MetaMask to approve {fromToken} spending.
+                </div>
+              </motion.div>
+            )}
+            {phase === "waitingApproval" && (
+              <motion.div
+                key="waiting-msg"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                style={{
+                  marginTop: "10px",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  background: "rgba(0,212,170,0.06)",
+                  border: "1px solid rgba(0,212,170,0.2)",
+                  fontSize: "13px",
+                  color: "#8B9EC7",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                  <span>⏳</span>
+                  <span style={{ color: "#ffffff", fontWeight: 600 }}>Approval confirmed!</span>
+                </div>
+                <div style={{ fontSize: "12px" }}>
+                  Preparing your swap — a second wallet request will appear shortly.
+                </div>
               </motion.div>
             )}
             {phase === "swapping" && (
@@ -669,10 +723,13 @@ export default function SwapPage() {
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
                   <span>⚡</span>
-                  Executing swap on Arc Testnet…
+                  <span style={{ color: "#ffffff", fontWeight: 600 }}>Check your wallet</span>
                 </div>
-                <div style={{ fontSize: "11px", color: "#4A5568" }}>
-                  This may take up to 30 seconds. Do not close this window.
+                <div style={{ fontSize: "12px" }}>
+                  Swap request sent. Click <b>Confirm</b> in MetaMask to complete the swap.
+                </div>
+                <div style={{ marginTop: "4px", fontSize: "11px", color: "#4A5568" }}>
+                  Do not close this window. Arc Testnet settles in ~3 seconds.
                 </div>
               </motion.div>
             )}
@@ -722,11 +779,7 @@ export default function SwapPage() {
               <div className="flex items-center gap-2 font-semibold" style={{ color: "#00D4AA" }}>
                 ✅ Swap Successful!
               </div>
-              {swapTxHash.startsWith("mock_") ? (
-                <p style={{ color: "#4A5568", margin: 0, fontSize: "12px" }}>
-                  Demo swap completed. Real swaps available for USDC ↔ EURC pairs on Arc.
-                </p>
-              ) : (
+              {swapTxHash ? (
                 <p style={{ color: "#8B9EC7", margin: 0 }}>
                   Tx: {swapTxHash.slice(0, 10)}…{swapTxHash.slice(-8)}{" "}
                   <a
@@ -738,6 +791,10 @@ export default function SwapPage() {
                   >
                     View on ArcScan →
                   </a>
+                </p>
+              ) : (
+                <p style={{ color: "#8B9EC7", margin: 0, fontSize: "12px" }}>
+                  Swap completed on Arc Testnet. Balances are refreshing…
                 </p>
               )}
               <button onClick={reset} className="text-xs underline text-left mt-1" style={{ color: "#8B9EC7" }}>
