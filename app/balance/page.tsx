@@ -183,8 +183,22 @@ export default function BalancePage() {
               </div>
             </>
           ) : (
-            <div className="py-4">
-              <p className="mb-4" style={{ color: "#8B9EC7" }}>Connect wallet to view your Unified Balance</p>
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              padding: "40px 24px",
+              gap: "16px",
+            }}>
+              <p style={{
+                color: "#8B9EC7",
+                fontSize: "15px",
+                margin: 0,
+              }}>
+                Connect wallet to view your Unified Balance
+              </p>
               <ConnectButton />
             </div>
           )}

@@ -50,12 +50,6 @@ function CheckItem({ text }: { text: string }) {
   );
 }
 
-const TECH_STACK = [
-  "Next.js 14", "TypeScript", "TailwindCSS", "Solidity 0.8.20",
-  "Hardhat", "wagmi v2", "RainbowKit", "viem", "OpenZeppelin",
-  "Arc Network", "USDC", "Vercel",
-];
-
 export default function AboutPage() {
   return (
     <div className="min-h-screen pt-8 pb-20 px-4" style={{ position: "relative", zIndex: 1 }}>
@@ -337,25 +331,6 @@ export default function AboutPage() {
                 <h3 className="text-lg font-bold text-white">{v.title}</h3>
                 <p className="text-sm leading-relaxed" style={{ color: "#8B9EC7" }}>{v.body}</p>
               </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* ── SECTION 6: TECH STACK ── */}
-        <motion.div
-          variants={fadeUpVariants}
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, amount: 0.2 }}
-          className="mb-24 text-center"
-        >
-          <h2 className="text-2xl font-black text-white mb-3">Built With Best-in-Class Technology</h2>
-          <p className="mb-10 text-sm" style={{ color: "#8B9EC7" }}>
-            Every layer of Stelfi is built with production-grade, open-source tooling
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            {TECH_STACK.map((tech) => (
-              <span key={tech} className="token-pill text-sm px-4 py-2">{tech}</span>
             ))}
           </div>
         </motion.div>
