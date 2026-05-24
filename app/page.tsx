@@ -120,7 +120,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="relative flex flex-col items-center px-6 pb-16 min-h-screen" style={{ zIndex: 1 }}>
+    <div className="relative flex flex-col items-center pb-16 min-h-screen" style={{ zIndex: 1 }}>
 
       {/* ── Hero ── */}
       <div className="flex flex-col items-center text-center pt-16 pb-16 w-full max-w-4xl">

@@ -519,7 +519,7 @@ export default function SwapPage() {
 
   // ── Render ───────────────────────────────────────────────────
   return (
-    <div className="min-h-screen pt-8 pb-16 px-4" style={{ position: "relative", zIndex: 1 }}>
+    <div className="min-h-screen pt-8 pb-16" style={{ position: "relative", zIndex: 1 }}>
       <div style={{ maxWidth: "440px", width: "100%", margin: "0 auto" }}>
 
         {/* Header */}

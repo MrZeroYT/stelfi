@@ -98,7 +98,7 @@ export default function SendPage() {
   const truncRecip  = recipient ? `${recipient.slice(0, 8)}…${recipient.slice(-6)}` : "";
 
   return (
-    <div className="min-h-screen pt-8 pb-20 px-4" style={{ position: "relative", zIndex: 1 }}>
+    <div className="min-h-screen pt-8 pb-20" style={{ position: "relative", zIndex: 1 }}>
       <div style={{ maxWidth: "480px", width: "100%", margin: "0 auto" }}>
 
         {/* ── Header ── */}

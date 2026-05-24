@@ -68,7 +68,7 @@ export default function BridgePage() {
   const isLoading = bridgeStatus === "loading";
 
   return (
-    <div className="min-h-screen pt-8 pb-20 px-4" style={{ position: "relative", zIndex: 1 }}>
+    <div className="min-h-screen pt-8 pb-20" style={{ position: "relative", zIndex: 1 }}>
       <div className="max-w-2xl mx-auto">
 
         {/* ── Header ── */}

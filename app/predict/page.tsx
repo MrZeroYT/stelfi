@@ -186,7 +186,7 @@ export default function PredictPage() {
 
   // ── Render ─────────────────────────────────────────────────
   return (
-    <div className="min-h-screen pt-8 pb-16 px-4" style={{ position: "relative", zIndex: 1 }}>
+    <div className="min-h-screen pt-8 pb-16" style={{ position: "relative", zIndex: 1 }}>
       <div className="max-w-4xl mx-auto">
 
         {/* Header */}

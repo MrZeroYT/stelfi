@@ -379,3 +379,52 @@ body::after {
     text-wrap: balance;
   }
 }
+
+/* ── Page Container — consistent horizontal margins ── */
+.page-container {
+  width: 100%;
+  padding-left: 100px;
+  padding-right: 100px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1023px) {
+  .page-container {
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+}
+
+@media (max-width: 767px) {
+  .page-container {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+/* ── Navbar Inner — matches page-container horizontal margins ── */
+.navbar-inner {
+  width: 100%;
+  padding-left: 100px;
+  padding-right: 100px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1023px) {
+  .navbar-inner {
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+}
+
+@media (max-width: 767px) {
+  .navbar-inner {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}

@@ -10,6 +10,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <ScrollToTop />
       <Navbar />
       <main
+        className="page-container"
         style={{
           paddingTop: "64px",
           minHeight: "calc(100vh - 64px)",

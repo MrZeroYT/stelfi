@@ -44,17 +44,7 @@ export function Navbar() {
           scrolled ? "glass-nav" : "bg-transparent"
         }`}
       >
-        <div
-          style={{
-            width: "100%",
-            padding: "0 32px",
-            height: "64px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            position: "relative",
-          }}
-        >
+        <div className="navbar-inner">
           {/* ── LEFT: Logo ── */}
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} style={{ flexShrink: 0 }}>
             <Link href="/" className="flex items-center gap-2 no-underline">
