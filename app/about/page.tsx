@@ -180,73 +180,6 @@ export default function AboutPage() {
               </div>
             </motion.div>
 
-            {/* Bridge card */}
-            <motion.div variants={staggerItem} className="glass-card p-8 flex flex-col gap-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl" style={{ background: "rgba(0,212,170,0.12)", color: "#00D4AA" }}>⛓</div>
-                <div>
-                  <h3 className="text-xl font-black text-white">Stelfi Bridge</h3>
-                  <p className="text-xs mt-0.5" style={{ color: "#00D4AA" }}>Cross-Chain USDC Transfer</p>
-                </div>
-              </div>
-              <div className="space-y-4 text-sm leading-relaxed" style={{ color: "#8B9EC7" }}>
-                <p>Stelfi Bridge enables seamless USDC movement from Ethereum, Base, Arbitrum, and other major blockchains directly into Arc Network in under 30 seconds. Built on Circle&apos;s industry-standard CCTP protocol.</p>
-                <p>Bridge uses a native burn-and-mint mechanism, eliminating the risk of wrapped tokens or synthetic assets. Your USDC arrives on Arc as native, first-class USDC.</p>
-              </div>
-              <div className="flex flex-col gap-2.5">
-                <CheckItem text="Ethereum, Base, Arbitrum supported" />
-                <CheckItem text="Circle CCTP — native burn and mint" />
-                <CheckItem text="No wrapped tokens — zero bridge risk" />
-                <CheckItem text="~20s attestation, under 1s Arc settlement" />
-                <CheckItem text="Free to use on testnet" />
-              </div>
-            </motion.div>
-
-            {/* Send card */}
-            <motion.div variants={staggerItem} className="glass-card p-8 flex flex-col gap-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl" style={{ background: "rgba(0,212,170,0.12)", color: "#00D4AA" }}>➤</div>
-                <div>
-                  <h3 className="text-xl font-black text-white">Stelfi Send</h3>
-                  <p className="text-xs mt-0.5" style={{ color: "#00D4AA" }}>Instant Wallet-to-Wallet Transfers</p>
-                </div>
-              </div>
-              <div className="space-y-4 text-sm leading-relaxed" style={{ color: "#8B9EC7" }}>
-                <p>Stelfi Send gives anyone the ability to transfer USDC directly between wallets on Arc Network with sub-second confirmation. Whether paying a collaborator or splitting costs, Send makes it as simple as entering an address.</p>
-                <p>No fees, no delays, no intermediaries. Transactions go directly from your wallet to the recipient via Arc Network.</p>
-              </div>
-              <div className="flex flex-col gap-2.5">
-                <CheckItem text="Send to any 0x wallet address" />
-                <CheckItem text="Sub-second confirmation on Arc" />
-                <CheckItem text="USDC-denominated gas — predictable cost" />
-                <CheckItem text="Non-custodial — funds go directly" />
-                <CheckItem text="Full transaction history on ArcScan" />
-              </div>
-            </motion.div>
-
-            {/* Unified Balance card — full width on md */}
-            <motion.div variants={staggerItem} className="glass-card p-8 flex flex-col gap-6 md:col-span-2">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl" style={{ background: "rgba(0,212,170,0.12)", color: "#00D4AA" }}>⬡</div>
-                <div>
-                  <h3 className="text-xl font-black text-white">Unified Balance</h3>
-                  <p className="text-xs mt-0.5" style={{ color: "#00D4AA" }}>Chain-Abstracted USDC Management</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4 text-sm leading-relaxed" style={{ color: "#8B9EC7" }}>
-                  <p>Unified Balance is Stelfi&apos;s most advanced capability — and the first consumer-facing implementation on Arc Network. Powered by Circle Gateway, it lets users pool USDC from multiple blockchains into a single, instantly spendable balance.</p>
-                  <p>Forget managing USDC on five different chains. Deposit once from anywhere, spend instantly on Arc.</p>
-                </div>
-                <div className="flex flex-col gap-2.5">
-                  <CheckItem text="Deposit from Ethereum, Base, Arbitrum" />
-                  <CheckItem text="Single unified USDC balance on Arc" />
-                  <CheckItem text="Powered by Circle Gateway" />
-                  <CheckItem text="Spend instantly — no per-chain delays" />
-                  <CheckItem text="First consumer UI for this on Arc" />
-                </div>
-              </div>
-            </motion.div>
           </div>
         </motion.div>
 
@@ -357,9 +290,6 @@ export default function AboutPage() {
               </Link>
               <Link href="/predict" className="inline-flex items-center justify-center px-6 rounded-xl font-bold text-sm no-underline transition-all duration-300" style={{ background: "rgba(0,212,170,0.1)", border: "1px solid rgba(0,212,170,0.3)", color: "#00D4AA", height: "48px" }}>
                 Launch Predict →
-              </Link>
-              <Link href="/bridge" className="inline-flex items-center justify-center px-6 rounded-xl font-bold text-sm no-underline transition-all duration-300" style={{ background: "rgba(0,212,170,0.1)", border: "1px solid rgba(0,212,170,0.3)", color: "#00D4AA", height: "48px" }}>
-                Launch Bridge →
               </Link>
             </div>
             <Link href="/contact" className="text-sm no-underline" style={{ color: "#8B9EC7" }}>

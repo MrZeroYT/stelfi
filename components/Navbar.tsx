@@ -9,9 +9,6 @@ import { useState, useEffect } from "react";
 const primaryLinks = [
   { href: "/swap",    label: "Swap"    },
   { href: "/predict", label: "Predict" },
-  { href: "/bridge",  label: "Bridge"  },
-  { href: "/send",    label: "Send"    },
-  { href: "/balance", label: "Balance" },
 ];
 
 const secondaryLinks = [

@@ -13,7 +13,7 @@ import {
 const tokens = ["USDC", "EURC", "BRLA", "MXNB", "PHPC", "JPYC", "KRW1"];
 
 const STATS = [
-  { value: "5",    label: "dApp Features"     },
+  { value: "2",    label: "dApp Features"     },
   { value: "< 1s", label: "Settlement Speed"  },
   { value: "USDC", label: "Native Gas Token"  },
 ];
@@ -139,12 +139,12 @@ export default function HomePage() {
         </motion.h1>
 
         <motion.p variants={fadeUpVariants} className="max-w-xl text-base md:text-lg mb-12" style={{ color: "#8B9EC7" }}>
-          Swap, bridge, send, and predict — all on Arc Network, powered by USDC.
+          Swap stablecoins and predict real-world outcomes — on Arc Network, powered by USDC.
         </motion.p>
 
-        {/* 5 Feature Cards — 3 top + 2 centered bottom */}
-        <motion.div variants={staggerContainer} className="w-full grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <FeatureCard icon="⇄" title="Stelfi Swap" badge="App Kit" description="Exchange stablecoins across borders instantly. USDC, EURC, BRLA, MXNB, PHPC, JPYC, KRW1 — transparent rates, 0.3% fee." href="/swap" cta="Launch Swap →">
+        {/* 2 Feature Cards */}
+        <motion.div variants={staggerContainer} className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 md:max-w-3xl">
+          <FeatureCard icon="⇄" title="Stelfi Swap" badge="Live on Arc" description="Exchange stablecoins across borders instantly. USDC, EURC, BRLA, MXNB, PHPC, JPYC, KRW1 — transparent rates, 0.3% fee." href="/swap" cta="Launch Swap →">
             <div className="flex flex-wrap gap-1.5">{tokens.map((t) => <span key={t} className="token-pill">{t}</span>)}</div>
           </FeatureCard>
 
@@ -155,17 +155,6 @@ export default function HomePage() {
               </span>
             </div>
           </FeatureCard>
-
-          <FeatureCard icon="⛓" title="Stelfi Bridge" badge="Circle CCTP" description="Move USDC from Ethereum, Base, or Arbitrum to Arc Network in under 30 seconds via Circle CCTP." href="/bridge" cta="Launch Bridge →">
-            <div className="flex flex-wrap gap-1.5">
-              {["Ethereum", "Base", "Arbitrum"].map((c) => <span key={c} className="token-pill">{c}</span>)}
-            </div>
-          </FeatureCard>
-        </motion.div>
-
-        <motion.div variants={staggerContainer} className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 md:max-w-2xl">
-          <FeatureCard icon="➤" title="Stelfi Send" badge="Arc Testnet" description="Send USDC to any wallet on Arc Network instantly. Fast, free, and non-custodial." href="/send" cta="Launch Send →" />
-          <FeatureCard icon="⬡" title="Unified Balance" badge="Circle Gateway" description="Pool USDC from multiple chains into one instantly spendable balance on Arc." href="/balance" cta="Launch Balance →" />
         </motion.div>
 
         <ScrollIndicator />
@@ -191,7 +180,7 @@ export default function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
             { icon: "💎", title: "Zero Hidden Costs", body: "Every fee on Stelfi is displayed before you confirm. Our 0.3% swap fee is the only cost — USDC gas on Arc means no volatile fee surprises." },
-            { icon: "🏆", title: "First on Arc Network", body: "Stelfi is the first platform to combine swap, prediction markets, bridge, send, and unified balance in one dApp on Arc — before anyone else." },
+            { icon: "🏆", title: "First on Arc Network", body: "Stelfi is the first platform to bring live stablecoin swaps and on-chain prediction markets together in one dApp on Arc — before anyone else." },
             { icon: "🔐", title: "You Own Your Assets", body: "Stelfi never holds your funds. All transactions go directly to and from your wallet via smart contracts. Your keys, your money — always." },
           ].map((c) => (
             <motion.div key={c.title} variants={staggerItem} className="glass-card p-7 flex flex-col gap-4">
@@ -213,7 +202,7 @@ export default function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
             { num: "01", title: "Connect Your Wallet", body: "Connect MetaMask or any EVM wallet. Add Arc Testnet and claim free USDC from the faucet to get started instantly." },
-            { num: "02", title: "Choose Your Feature", body: "Swap stablecoins, bridge from other chains, send to a friend, or place a prediction — all from the same platform." },
+            { num: "02", title: "Choose Your Feature", body: "Swap stablecoins across currencies or stake USDC on a real-world outcome with Stelfi Predict — from the same platform." },
             { num: "03", title: "Transact in Under 1 Second", body: "Arc Network settles every transaction in under one second. No waiting. No uncertainty. Just instant finance." },
           ].map((step) => (
             <motion.div key={step.num} variants={staggerItem} className="glass-card p-7 flex flex-col gap-4 text-center items-center">
@@ -317,9 +306,6 @@ export default function HomePage() {
           {[
             { href: "/swap",    label: "Swap"    },
             { href: "/predict", label: "Predict" },
-            { href: "/bridge",  label: "Bridge"  },
-            { href: "/send",    label: "Send"    },
-            { href: "/balance", label: "Balance" },
             { href: "/about",   label: "About"   },
             { href: "/contact", label: "Contact" },
           ].map((link) => (
